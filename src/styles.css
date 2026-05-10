@@ -116,3 +116,57 @@ body {
 .hold {
   color: #944;
 }
+
+.centered {
+  max-width: 520px;
+  margin: 4rem auto;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.centered h1 {
+  margin-top: 0;
+}
+
+.centered .error {
+  color: #944;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+.centered button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.centered button:disabled {
+  background: #888;
+  cursor: progress;
+}
+
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: #f1f1f1;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.topbar .link {
+  background: none;
+  border: none;
+  color: #225;
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+  padding: 0;
+}

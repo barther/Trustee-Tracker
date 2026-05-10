@@ -1,10 +1,7 @@
 import { useMemo, useState } from 'react';
 import { generateAgenda, type Agenda, type AgendaEntry } from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
-import { seedItems } from '../seed/items';
-import type { MeetingEntry } from '../types';
-
-const SEED_ENTRIES: MeetingEntry[] = [];
+import { useStore } from '../store/useStore';
 
 interface SectionProps {
   title: string;
@@ -61,10 +58,12 @@ export function AgendaView() {
   const [targetDate, setTargetDate] = useState<string>(() =>
     toIsoDate(nextThirdTuesday(new Date())),
   );
+  const items = useStore((s) => s.items);
+  const meetingEntries = useStore((s) => s.meetingEntries);
 
   const agenda: Agenda = useMemo(
-    () => generateAgenda(seedItems, SEED_ENTRIES, targetDate),
-    [targetDate],
+    () => generateAgenda(items, meetingEntries, targetDate),
+    [items, meetingEntries, targetDate],
   );
 
   return (
