@@ -92,18 +92,18 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
       <Header item={item} />
       <Facts item={item} />
 
+      <History entries={entries} />
+      <Decisions decisions={decisions} />
+      <Actions actions={actions} />
+
       {item.notes && (
         <section className="detail-section">
-          <h2>Notes</h2>
+          <h2>Background</h2>
           <div className="prose">
             <ReactMarkdown>{item.notes}</ReactMarkdown>
           </div>
         </section>
       )}
-
-      <History entries={entries} />
-      <Decisions decisions={decisions} />
-      <Actions actions={actions} />
     </div>
   );
 }
