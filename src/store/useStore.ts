@@ -126,6 +126,39 @@ function draftToFields(draft: ItemDraft, includeStatusForCreate: boolean): Recor
   return fields;
 }
 
+function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort();
+  const sb = [...b].sort();
+  return sa.every((v, i) => v === sb[i]);
+}
+
+function itemDraftDiff(existing: Item, next: ItemDraft): Record<string, unknown> {
+  const diff: Record<string, unknown> = {};
+  const nextTitle = next.title.trim();
+  if (nextTitle !== existing.title) diff.Title = nextTitle;
+  if (next.standing !== existing.standing) diff.Standing = next.standing;
+  if (next.defaultSection !== existing.defaultSection) diff.DefaultSection = next.defaultSection;
+  if (!arraysEqual(next.tags, existing.tags)) diff.Tags = next.tags;
+  const nextAssigned = next.assignedTo.trim();
+  if (nextAssigned !== (existing.assignedTo ?? '')) diff.AssignedTo = nextAssigned;
+  const nextOnHold = next.onHoldReason.trim();
+  if (nextOnHold !== (existing.onHoldReason ?? '')) diff.OnHoldReason = nextOnHold;
+  const nextClosedReason = next.closedReason.trim();
+  if (nextClosedReason !== (existing.closedReason ?? '')) diff.ClosedReason = nextClosedReason;
+  if (next.notes !== (existing.notes ?? '')) diff.Notes = next.notes;
+  if ((next.firstRaisedDate || '') !== (existing.firstRaisedDate ?? '')) {
+    diff.FirstRaisedDate = next.firstRaisedDate || null;
+  }
+  if ((next.deferredUntil || '') !== (existing.deferredUntil ?? '')) {
+    diff.DeferredUntil = next.deferredUntil || null;
+  }
+  if ((next.closedDate || '') !== (existing.closedDate ?? '')) {
+    diff.ClosedDate = next.closedDate || null;
+  }
+  return diff;
+}
+
 let session: SessionContext | undefined;
 
 function requireSession(): SessionContext {
@@ -228,13 +261,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   async updateItem(itemId, draft) {
     const { client, env } = requireSession();
-    await patchListItemFields(
-      client,
-      env.siteId,
-      env.lists.items,
-      itemId,
-      draftToFields(draft, false),
-    );
+    const state = get();
+    const existing = state.items.find((i) => i.id === itemId);
+    if (!existing) throw new Error(`Item ${itemId} not found.`);
+    const diff = itemDraftDiff(existing, draft);
+    if (Object.keys(diff).length === 0) return;
+    await patchListItemFields(client, env.siteId, env.lists.items, itemId, diff);
     const items = await fetchItems(client, env.siteId, env.lists.items);
     set({ items });
   },
