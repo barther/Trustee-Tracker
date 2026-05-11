@@ -1,10 +1,11 @@
-import type { ActionItem, Decision, Item, MeetingEntry } from '../types';
+import type { ActionItem, Decision, Item, Meeting, MeetingEntry } from '../types';
 import type { GraphClient } from './client';
 import { GraphError } from './client';
 import {
   mapActionItem,
   mapDecision,
   mapItem,
+  mapMeeting,
   mapMeetingEntry,
   type GraphListItem,
 } from './mappers';
@@ -73,4 +74,49 @@ export function fetchDecisions(
   listName: string,
 ): Promise<Decision[]> {
   return readList(client, siteId, listName, (row) => mapDecision(row));
+}
+
+export function fetchMeetings(
+  client: GraphClient,
+  siteId: string,
+  listName: string,
+): Promise<Meeting[]> {
+  return readList(client, siteId, listName, (row) => mapMeeting(row));
+}
+
+function listItemPath(siteId: string, listName: string, itemId?: string): string {
+  const base = `/sites/${encodeURIComponent(siteId)}/lists/${encodeURIComponent(listName)}/items`;
+  return itemId ? `${base}/${encodeURIComponent(itemId)}` : base;
+}
+
+export async function createListItem(
+  client: GraphClient,
+  siteId: string,
+  listName: string,
+  fields: Record<string, unknown>,
+): Promise<string> {
+  const created = await client.fetchJson<{ id: string }>(
+    `${listItemPath(siteId, listName)}?$expand=fields`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ fields }),
+    },
+  );
+  return created.id;
+}
+
+export async function patchListItemFields(
+  client: GraphClient,
+  siteId: string,
+  listName: string,
+  itemId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  await client.fetchJson<unknown>(
+    `${listItemPath(siteId, listName, itemId)}/fields`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(fields),
+    },
+  );
 }

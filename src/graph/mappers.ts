@@ -7,7 +7,9 @@ import type {
   EntrySection,
   Item,
   ItemStatus,
+  Meeting,
   MeetingEntry,
+  MeetingType,
   Tag,
 } from '../types';
 
@@ -36,6 +38,7 @@ const DECISION_TYPES: readonly DecisionType[] = [
   'Authorization',
   'Procedural',
 ];
+const MEETING_TYPES: readonly MeetingType[] = ['Regular', 'Special'];
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
@@ -157,6 +160,40 @@ interface ActionItemFields {
   Status?: string;
   CompletedAtMeetingIdLookupId?: number | string;
   CompletedNote?: string;
+}
+
+interface MeetingFields {
+  Title?: string;
+  MeetingDate?: string;
+  MeetingType?: string;
+  Location?: string;
+  MembersPresent?: string;
+  MembersAbsent?: string;
+  Guests?: string;
+  OpeningPrayerBy?: string;
+  AdjournedAt?: string;
+  NextMeetingDate?: string;
+  OpenCloseThisMonth?: string;
+  OpenCloseNextMonth?: string;
+}
+
+export function mapMeeting(row: GraphListItem<MeetingFields>): Meeting {
+  const f = row.fields ?? {};
+  return {
+    id: row.id,
+    title: asString(f.Title) ?? '(untitled)',
+    meetingDate: asDate(f.MeetingDate) ?? '',
+    meetingType: oneOf(f.MeetingType, MEETING_TYPES, 'Regular'),
+    location: asString(f.Location),
+    membersPresent: asString(f.MembersPresent),
+    membersAbsent: asString(f.MembersAbsent),
+    guests: asString(f.Guests),
+    openingPrayerBy: asString(f.OpeningPrayerBy),
+    adjournedAt: asString(f.AdjournedAt),
+    nextMeetingDate: asDate(f.NextMeetingDate),
+    openCloseThisMonth: asString(f.OpenCloseThisMonth),
+    openCloseNextMonth: asString(f.OpenCloseNextMonth),
+  };
 }
 
 interface DecisionFields {
