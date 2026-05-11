@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
 import { useStore } from '../store/useStore';
 import type {
   ActionItem,
@@ -7,8 +8,11 @@ import type {
   EntrySection,
   Item,
   ItemStatus,
+  Meeting,
   MeetingEntry,
 } from '../types';
+
+const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
 const SECTION_LABEL: Record<EntrySection, string> = {
   Update: 'Updates',
@@ -91,6 +95,7 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
 
       <Header item={item} />
       <Facts item={item} />
+      <AddUpdate item={item} />
 
       <History entries={entries} />
       <Decisions decisions={decisions} />
@@ -105,6 +110,138 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
         </section>
       )}
     </div>
+  );
+}
+
+interface TargetMeeting {
+  meeting?: Meeting;
+  pendingDate: string;
+}
+
+function resolveTarget(meetings: Meeting[]): TargetMeeting {
+  const today = toIsoDate(new Date());
+  const upcoming = meetings
+    .filter((m) => m.meetingDate >= today)
+    .sort((a, b) => a.meetingDate.localeCompare(b.meetingDate));
+  if (upcoming.length > 0) {
+    return { meeting: upcoming[0], pendingDate: upcoming[0].meetingDate };
+  }
+  return { pendingDate: toIsoDate(nextThirdTuesday(new Date())) };
+}
+
+function AddUpdate({ item }: { item: Item }) {
+  const meetings = useStore((s) => s.meetings);
+  const createMeeting = useStore((s) => s.createMeeting);
+  const addInterimUpdate = useStore((s) => s.addInterimUpdate);
+
+  const [open, setOpen] = useState(false);
+  const [narrative, setNarrative] = useState('');
+  const [statusChangeTo, setStatusChangeTo] = useState<ItemStatus | ''>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const target = useMemo(() => resolveTarget(meetings), [meetings]);
+  const meetingExists = !!target.meeting;
+
+  if (!open) {
+    return (
+      <div className="add-update">
+        <button onClick={() => setOpen(true)} className="primary">
+          Add update
+        </button>
+      </div>
+    );
+  }
+
+  const reset = () => {
+    setNarrative('');
+    setStatusChangeTo('');
+    setError(null);
+    setOpen(false);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!narrative.trim()) {
+      setError('Narrative is required.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      let meetingId = target.meeting?.id;
+      if (!meetingId) {
+        const confirmed = window.confirm(
+          `No future meeting exists. Create ${target.pendingDate} (Regular) and attach this update?`,
+        );
+        if (!confirmed) {
+          setSubmitting(false);
+          return;
+        }
+        const created = await createMeeting({ meetingDate: target.pendingDate });
+        meetingId = created.id;
+      }
+      await addInterimUpdate({
+        itemId: item.id,
+        meetingId,
+        narrative: narrative.trim(),
+        statusChangeTo: statusChangeTo || undefined,
+      });
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="add-update-form" onSubmit={submit}>
+      <div className="form-target">
+        {meetingExists ? (
+          <>
+            Attaching to <strong>{target.meeting!.title}</strong>
+          </>
+        ) : (
+          <>
+            No future meeting yet — will create <strong>{target.pendingDate} Regular</strong> on submit
+          </>
+        )}
+      </div>
+      <label className="form-field">
+        <span>What happened</span>
+        <textarea
+          rows={4}
+          value={narrative}
+          onChange={(e) => setNarrative(e.target.value)}
+          placeholder="Elevator phone installed today."
+          autoFocus
+        />
+      </label>
+      <label className="form-field">
+        <span>Status change (optional)</span>
+        <select
+          value={statusChangeTo}
+          onChange={(e) => setStatusChangeTo(e.target.value as ItemStatus | '')}
+        >
+          <option value="">No change</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
+      {error && <p className="form-error">{error}</p>}
+      <div className="form-actions">
+        <button type="submit" className="primary" disabled={submitting}>
+          {submitting ? 'Saving…' : 'Save update'}
+        </button>
+        <button type="button" onClick={reset} disabled={submitting}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
