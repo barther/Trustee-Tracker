@@ -55,6 +55,7 @@ export function AgendaView() {
   const items = useStore((s) => s.items);
   const meetingEntries = useStore((s) => s.meetingEntries);
   const actionItems = useStore((s) => s.actionItems);
+  const meetings = useStore((s) => s.meetings);
 
   const agenda = useMemo(
     () => generateAgenda(items, meetingEntries, targetDate),
@@ -93,9 +94,19 @@ export function AgendaView() {
           </div>
           <h1>{shortDate(targetDate)} agenda</h1>
         </div>
-        <a href={newItemHref} className="btn-fab" aria-label="New item">
-          +
-        </a>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => void exportAgendaPdf(targetDate, agenda, meetingEntries, meetings)}
+            aria-label="Export agenda PDF"
+          >
+            Export PDF
+          </button>
+          <a href={newItemHref} className="btn-fab" aria-label="New item">
+            +
+          </a>
+        </div>
       </header>
 
       <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
@@ -311,6 +322,27 @@ function AgendaRow({
       </div>
     </a>
   );
+}
+
+async function exportAgendaPdf(
+  targetDate: string,
+  agenda: Agenda,
+  meetingEntries: import('../types').MeetingEntry[],
+  meetings: import('../types').Meeting[],
+) {
+  const { generateAgendaPdf } = await import('../agenda/pdf');
+  const meeting = meetings.find((m) => m.meetingDate === targetDate);
+  const prevMeeting = meetings
+    .filter((m) => m.meetingDate < targetDate)
+    .sort((a, b) => b.meetingDate.localeCompare(a.meetingDate))[0];
+  const doc = generateAgendaPdf({
+    targetDate,
+    meeting,
+    prevMeeting,
+    agenda,
+    meetingEntries,
+  });
+  doc.save(`Trustees-Agenda-${targetDate}.pdf`);
 }
 
 // First sentence (or first paragraph) of markdown narrative, with
