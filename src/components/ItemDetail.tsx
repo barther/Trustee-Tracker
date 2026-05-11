@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
 import {
   ENTRY_SECTION_LABEL,
@@ -132,7 +133,7 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
           <div className="section-label">Background</div>
           <div className="facts-card" style={{ padding: '14px' }}>
             <div className="prose">
-              <ReactMarkdown>{item.notes}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.notes}</ReactMarkdown>
             </div>
           </div>
         </>
@@ -450,7 +451,7 @@ function HistoryRow({ entry, isFirst }: { entry: MeetingEntry; isFirst: boolean 
       </div>
       {entry.narrative ? (
         <div className="prose">
-          <ReactMarkdown>{entry.narrative}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.narrative}</ReactMarkdown>
         </div>
       ) : (
         <p className="empty">No narrative recorded.</p>

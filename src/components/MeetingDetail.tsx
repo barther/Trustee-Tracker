@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   ENTRY_SECTION_COLOR,
   ENTRY_SECTION_LABEL,
@@ -578,7 +579,7 @@ function EntryRow({
       </div>
       {entry.narrative ? (
         <div className="prose">
-          <ReactMarkdown>{entry.narrative}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.narrative}</ReactMarkdown>
         </div>
       ) : (
         <p className="empty">No narrative recorded.</p>
