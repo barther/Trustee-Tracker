@@ -6,6 +6,7 @@ import { useHashRoute } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import { AgendaView } from './AgendaView';
 import { ItemDetail } from './ItemDetail';
+import { ItemForm } from './ItemForm';
 
 type Phase = 'boot' | 'config-error' | 'signed-out' | 'authenticating' | 'ready';
 
@@ -124,6 +125,10 @@ export function AppShell() {
         </Centered>
       ) : route.view === 'item' ? (
         <ItemDetail itemId={route.itemId} />
+      ) : route.view === 'newItem' ? (
+        <ItemForm mode="create" />
+      ) : route.view === 'editItem' ? (
+        <ItemForm mode="edit" itemId={route.itemId} />
       ) : (
         <AgendaView />
       )}

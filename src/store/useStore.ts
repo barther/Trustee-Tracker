@@ -14,12 +14,14 @@ import {
 import type { AppEnv } from '../env';
 import type {
   ActionItem,
+  DefaultSection,
   Decision,
   EntrySection,
   Item,
   ItemStatus,
   Meeting,
   MeetingEntry,
+  Tag,
 } from '../types';
 
 export type LoadKind = 'config' | 'auth' | 'unprovisioned' | 'graph' | 'unknown';
@@ -40,6 +42,20 @@ export interface InterimUpdateInput {
   statusChangeTo?: ItemStatus;
 }
 
+export interface ItemDraft {
+  title: string;
+  standing: boolean;
+  defaultSection: DefaultSection;
+  tags: Tag[];
+  assignedTo: string;
+  firstRaisedDate: string;
+  onHoldReason: string;
+  deferredUntil: string;
+  closedDate: string;
+  closedReason: string;
+  notes: string;
+}
+
 interface SessionContext {
   client: GraphClient;
   env: AppEnv;
@@ -58,6 +74,8 @@ interface StoreState {
   reset: () => void;
   createMeeting: (params: { meetingDate: string; meetingType?: 'Regular' | 'Special'; titleSuffix?: string }) => Promise<Meeting>;
   addInterimUpdate: (input: InterimUpdateInput) => Promise<void>;
+  createItem: (draft: ItemDraft) => Promise<Item>;
+  updateItem: (itemId: string, draft: ItemDraft) => Promise<void>;
 }
 
 function toError(err: unknown): LoadError {
@@ -86,6 +104,26 @@ function entryTitle(meetingDate: string, itemTitle: string): string {
 function meetingTitle(meetingDate: string, meetingType: 'Regular' | 'Special', suffix?: string): string {
   const base = `${meetingDate} ${meetingType}`;
   return suffix ? `${base} — ${suffix}` : base;
+}
+
+function draftToFields(draft: ItemDraft, includeStatusForCreate: boolean): Record<string, unknown> {
+  const fields: Record<string, unknown> = {
+    Title: draft.title.trim(),
+    Standing: draft.standing,
+    DefaultSection: draft.defaultSection,
+    Tags: draft.tags,
+    AssignedTo: draft.assignedTo.trim(),
+    OnHoldReason: draft.onHoldReason.trim(),
+    ClosedReason: draft.closedReason.trim(),
+    Notes: draft.notes,
+    FirstRaisedDate: draft.firstRaisedDate || null,
+    DeferredUntil: draft.deferredUntil || null,
+    ClosedDate: draft.closedDate || null,
+  };
+  if (includeStatusForCreate) {
+    fields.Status = 'Open';
+  }
+  return fields;
 }
 
 let session: SessionContext | undefined;
@@ -169,6 +207,36 @@ export const useStore = create<StoreState>((set, get) => ({
       throw new Error('Meeting was created but could not be located after refetch.');
     }
     return created;
+  },
+
+  async createItem(draft) {
+    const { client, env } = requireSession();
+    const { id } = await createListItem(
+      client,
+      env.siteId,
+      env.lists.items,
+      draftToFields(draft, true),
+    );
+    const items = await fetchItems(client, env.siteId, env.lists.items);
+    set({ items });
+    const created = items.find((i) => i.id === id);
+    if (!created) {
+      throw new Error('Item was created but could not be located after refetch.');
+    }
+    return created;
+  },
+
+  async updateItem(itemId, draft) {
+    const { client, env } = requireSession();
+    await patchListItemFields(
+      client,
+      env.siteId,
+      env.lists.items,
+      itemId,
+      draftToFields(draft, false),
+    );
+    const items = await fetchItems(client, env.siteId, env.lists.items);
+    set({ items });
   },
 
   async addInterimUpdate({ itemId, meetingId, narrative, section = 'Update', statusChangeTo }) {

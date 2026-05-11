@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import { itemEditHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import type {
   ActionItem,
@@ -248,7 +249,12 @@ function AddUpdate({ item }: { item: Item }) {
 function Header({ item }: { item: Item }) {
   return (
     <header className="detail-header">
-      <h1>{item.title}</h1>
+      <div className="detail-header-row">
+        <h1>{item.title}</h1>
+        <a href={itemEditHref(item.id)} className="button-link">
+          Edit
+        </a>
+      </div>
       <div className="detail-badges">
         <span className={statusClass(item.status)}>{item.status}</span>
         {item.standing && <span className="badge">Standing</span>}

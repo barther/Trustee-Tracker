@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { generateAgenda, type Agenda, type AgendaEntry } from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
-import { itemHref } from '../routing/hashRoute';
+import { itemHref, newItemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 
 interface SectionProps {
@@ -73,14 +73,19 @@ export function AgendaView() {
     <div className="agenda">
       <header className="agenda-header">
         <h1>Trustees Agenda</h1>
-        <label>
-          Meeting date{' '}
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-          />
-        </label>
+        <div className="agenda-controls">
+          <label>
+            Meeting date{' '}
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
+          </label>
+          <a href={newItemHref} className="primary button-link">
+            + New item
+          </a>
+        </div>
       </header>
       <Section title="Updates" entries={agenda.updates} emptyHint="No standing updates." />
       <Section

@@ -6,20 +6,23 @@ export type AgendaSection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'Tabled';
 
 export type EntrySection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'OtherBusiness';
 
-export type Tag =
-  | 'Building'
-  | 'Finance'
-  | 'Grounds'
-  | 'Security'
-  | 'HVAC'
-  | 'Accessibility'
-  | 'Furniture'
-  | 'FacilityUse'
-  | 'Budget'
-  | 'Vendors'
-  | 'Personnel'
-  | 'Technology'
-  | 'SafetySanctuary';
+export const TAGS = [
+  'Building',
+  'Finance',
+  'Grounds',
+  'Security',
+  'HVAC',
+  'Accessibility',
+  'Furniture',
+  'FacilityUse',
+  'Budget',
+  'Vendors',
+  'Personnel',
+  'Technology',
+  'SafetySanctuary',
+] as const;
+
+export type Tag = (typeof TAGS)[number];
 
 export type MeetingType = 'Regular' | 'Special';
 
