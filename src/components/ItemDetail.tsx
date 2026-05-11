@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import {
+  ENTRY_SECTION_LABEL,
+  SECTION_LABEL,
+  STATUS_PILL,
+  formatMoney,
+  longDate,
+  shortDate,
+  tagDisplay,
+  tagPillStyle,
+} from '../design/tokens';
 import { itemEditHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import type {
-  ActionItem,
+  AgendaSection,
   Decision,
-  EntrySection,
   Item,
   ItemStatus,
   Meeting,
@@ -16,15 +25,12 @@ import { ActionCard } from './ActionsDashboard';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
-const SECTION_LABEL: Record<EntrySection, string> = {
-  Update: 'Updates',
-  OldBusiness: 'Old Business',
-  NewBusiness: 'New Business',
-  OtherBusiness: 'Other Business',
-};
-
-function statusClass(status: ItemStatus): string {
-  return `status status-${status.toLowerCase()}`;
+function classifyAgendaSection(item: Item): AgendaSection | null {
+  if (item.status === 'Closed' || item.status === 'Declined') return null;
+  if (item.status === 'Tabled' || item.onHoldReason) return 'Tabled';
+  if (item.defaultSection !== 'Auto') return item.defaultSection;
+  if (item.standing) return 'Update';
+  return 'OldBusiness';
 }
 
 interface ItemDetailProps {
@@ -74,6 +80,8 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
     [allActions, itemId],
   );
 
+  const openActionCount = actions.filter((a) => a.status === 'Open').length;
+
   const drift = useMemo(() => {
     if (!item) return null;
     const lastChange = entries.find((e) => e.statusChangeTo);
@@ -84,49 +92,127 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
 
   if (!item) {
     return (
-      <div className="detail">
-        <p>
-          <a href="#" className="back">
-            ← Agenda
-          </a>
-        </p>
+      <main className="page">
+        <a href="#" className="back-link">
+          ← Agenda
+        </a>
         <p className="empty">Item not found.</p>
-      </div>
+      </main>
     );
   }
 
-  return (
-    <div className="detail">
-      <p>
-        <a href="#" className="back">
-          ← Agenda
-        </a>
-      </p>
+  const agendaSection = classifyAgendaSection(item);
 
-      <Header item={item} />
+  return (
+    <main className="page">
+      <a href="#" className="back-link">
+        ← Agenda
+      </a>
+
+      <Header item={item} agendaSection={agendaSection} />
+
       {drift && (
-        <p className="form-error">
-          Status drift: most recent meeting entry on {drift.on} set status to{' '}
+        <div className="drift-banner">
+          Status drift: most recent meeting entry on{' '}
+          <strong>{shortDate(drift.on)}</strong> set status to{' '}
           <strong>{drift.expected}</strong>, but the item is{' '}
           <strong>{item.status}</strong>. Edit the item to reconcile.
-        </p>
+        </div>
       )}
+
       <Facts item={item} />
       <AddUpdate item={item} />
 
       <History entries={entries} />
       <Decisions decisions={decisions} />
-      <Actions actions={actions} />
+      <Actions actions={actions} openCount={openActionCount} />
 
       {item.notes && (
-        <section className="detail-section">
-          <h2>Background</h2>
-          <div className="prose">
-            <ReactMarkdown>{item.notes}</ReactMarkdown>
+        <>
+          <div className="section-label">Background</div>
+          <div className="facts-card" style={{ padding: '14px' }}>
+            <div className="prose">
+              <ReactMarkdown>{item.notes}</ReactMarkdown>
+            </div>
           </div>
-        </section>
+        </>
       )}
-    </div>
+    </main>
+  );
+}
+
+function Header({
+  item,
+  agendaSection,
+}: {
+  item: Item;
+  agendaSection: AgendaSection | null;
+}) {
+  const statusStyle = STATUS_PILL[item.status];
+  return (
+    <header className="detail-header">
+      <div className="badge-row">
+        <span
+          className="status-pill"
+          style={{ background: statusStyle.bg, color: statusStyle.fg }}
+        >
+          {item.status}
+          {agendaSection ? ` · ${SECTION_LABEL[agendaSection]}` : ''}
+        </span>
+        {item.standing && <span className="badge">Standing</span>}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <h1>{item.title}</h1>
+        <a
+          href={itemEditHref(item.id)}
+          className="btn btn-ghost"
+          style={{ flex: '0 0 auto' }}
+        >
+          Edit
+        </a>
+      </div>
+      {item.tags.length > 0 && (
+        <div className="tag-row">
+          {item.tags.map((t) => (
+            <span key={t} className="tag-pill" style={tagPillStyle(t)}>
+              {tagDisplay(t)}
+            </span>
+          ))}
+        </div>
+      )}
+    </header>
+  );
+}
+
+function Facts({ item }: { item: Item }) {
+  const rows: Array<[string, React.ReactNode]> = [];
+  if (item.assignedTo) rows.push(['Assigned', item.assignedTo]);
+  if (item.firstRaisedDate)
+    rows.push(['First raised', longDate(item.firstRaisedDate)]);
+  if (item.defaultSection !== 'Auto')
+    rows.push(['Default section', item.defaultSection]);
+  if (item.onHoldReason) rows.push(['On hold', item.onHoldReason]);
+  if (item.deferredUntil)
+    rows.push(['Deferred until', longDate(item.deferredUntil)]);
+  if (item.closedDate) rows.push(['Closed', longDate(item.closedDate)]);
+  if (item.closedReason) rows.push(['Closed reason', item.closedReason]);
+  if (rows.length === 0) return null;
+  return (
+    <dl className="facts-card">
+      {rows.map(([k, v]) => (
+        <div key={k} className="facts-row">
+          <dt>{k}</dt>
+          <dd>{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -162,11 +248,13 @@ function AddUpdate({ item }: { item: Item }) {
 
   if (!open) {
     return (
-      <div className="add-update">
-        <button onClick={() => setOpen(true)} className="primary">
-          Add update
-        </button>
-      </div>
+      <button
+        onClick={() => setOpen(true)}
+        className="btn btn-primary"
+        style={{ width: '100%', padding: '14px', fontSize: 15 }}
+      >
+        + Add update for {meetingExists ? target.meeting!.title : `${shortDate(target.pendingDate)} meeting`}
+      </button>
     );
   }
 
@@ -213,7 +301,7 @@ function AddUpdate({ item }: { item: Item }) {
   };
 
   return (
-    <form className="add-update-form" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <div className="form-target">
         {meetingExists ? (
           <>
@@ -221,7 +309,8 @@ function AddUpdate({ item }: { item: Item }) {
           </>
         ) : (
           <>
-            No future meeting yet — will create <strong>{target.pendingDate} Regular</strong> on submit
+            No future meeting yet — will create{' '}
+            <strong>{target.pendingDate} Regular</strong> on submit
           </>
         )}
       </div>
@@ -251,10 +340,15 @@ function AddUpdate({ item }: { item: Item }) {
       </label>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Save update'}
         </button>
-        <button type="button" onClick={reset} disabled={submitting}>
+        <button
+          type="button"
+          onClick={reset}
+          className="btn btn-ghost"
+          disabled={submitting}
+        >
           Cancel
         </button>
       </div>
@@ -262,71 +356,36 @@ function AddUpdate({ item }: { item: Item }) {
   );
 }
 
-function Header({ item }: { item: Item }) {
-  return (
-    <header className="detail-header">
-      <div className="detail-header-row">
-        <h1>{item.title}</h1>
-        <a href={itemEditHref(item.id)} className="button-link">
-          Edit
-        </a>
-      </div>
-      <div className="detail-badges">
-        <span className={statusClass(item.status)}>{item.status}</span>
-        {item.standing && <span className="badge">Standing</span>}
-        {item.tags.map((t) => (
-          <span key={t} className="tag">
-            {t}
-          </span>
-        ))}
-      </div>
-    </header>
-  );
-}
-
-function Facts({ item }: { item: Item }) {
-  const rows: Array<[string, React.ReactNode]> = [];
-  if (item.assignedTo) rows.push(['Assigned', item.assignedTo]);
-  if (item.firstRaisedDate) rows.push(['First raised', item.firstRaisedDate]);
-  if (item.defaultSection !== 'Auto') {
-    rows.push(['Default section', item.defaultSection]);
-  }
-  if (item.onHoldReason) rows.push(['On hold', item.onHoldReason]);
-  if (item.deferredUntil) rows.push(['Deferred until', item.deferredUntil]);
-  if (item.closedDate) rows.push(['Closed', item.closedDate]);
-  if (item.closedReason) rows.push(['Closed reason', item.closedReason]);
-  if (rows.length === 0) return null;
-  return (
-    <dl className="facts">
-      {rows.map(([k, v]) => (
-        <div key={k} className="fact">
-          <dt>{k}</dt>
-          <dd>{v}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
 function History({ entries }: { entries: MeetingEntry[] }) {
   return (
-    <section className="detail-section">
-      <h2>
-        History <span className="count">({entries.length})</span>
-      </h2>
+    <>
+      <div className="section-label">
+        History <span className="meta">· {entries.length}</span>
+      </div>
       {entries.length === 0 ? (
         <p className="empty">No prior meeting entries.</p>
       ) : (
         <ol className="timeline">
-          {entries.map((entry) => (
-            <li key={entry.id} className="timeline-row">
+          {entries.map((entry, i) => (
+            <li
+              key={entry.id}
+              className={`timeline-row ${i === 0 ? 'current' : ''}`}
+            >
               <div className="timeline-head">
-                <span className="timeline-date">{entry.meetingDate}</span>
+                <span className="timeline-date">
+                  {shortDate(entry.meetingDate)}
+                </span>
                 <span className="timeline-section">
-                  {SECTION_LABEL[entry.section]}
+                  {ENTRY_SECTION_LABEL[entry.section]}
                 </span>
                 {entry.statusChangeTo && (
-                  <span className={statusClass(entry.statusChangeTo)}>
+                  <span
+                    className="status-pill"
+                    style={{
+                      background: STATUS_PILL[entry.statusChangeTo].bg,
+                      color: STATUS_PILL[entry.statusChangeTo].fg,
+                    }}
+                  >
                     → {entry.statusChangeTo}
                   </span>
                 )}
@@ -342,59 +401,77 @@ function History({ entries }: { entries: MeetingEntry[] }) {
           ))}
         </ol>
       )}
-    </section>
+    </>
   );
 }
 
 function Decisions({ decisions }: { decisions: Decision[] }) {
   if (decisions.length === 0) return null;
   return (
-    <section className="detail-section">
-      <h2>
-        Decisions <span className="count">({decisions.length})</span>
-      </h2>
-      <ul className="decisions">
+    <>
+      <div className="section-label">
+        Decisions <span className="meta">· {decisions.length}</span>
+      </div>
+      <ul className="action-list">
         {decisions.map((d) => (
-          <li key={d.id} className="decision-row">
+          <li key={d.id} className="decision-card">
             <div className="decision-head">
-              <span className="timeline-date">{d.decisionDate}</span>
+              <span className="timeline-date">{shortDate(d.decisionDate)}</span>
               <span className="badge">{d.decisionType}</span>
             </div>
             <div className="decision-summary">{d.summary}</div>
             <div className="decision-meta">
-              {d.motionBy && <span>Motion: {d.motionBy}</span>}
-              {d.secondBy && <span>Second: {d.secondBy}</span>}
-              {d.vote && <span>Vote: {d.vote}</span>}
-              {d.amount !== undefined && (
+              {d.motionBy && (
                 <span>
-                  Amount: $
-                  {d.amount.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  <strong>Motion</strong> {d.motionBy}
                 </span>
               )}
-              {d.vendor && <span>Vendor: {d.vendor}</span>}
+              {d.secondBy && (
+                <span>
+                  <strong>Second</strong> {d.secondBy}
+                </span>
+              )}
+              {d.vote && (
+                <span>
+                  <strong>Vote</strong> {d.vote}
+                </span>
+              )}
+              {typeof d.amount === 'number' && (
+                <span>
+                  <strong>Amount</strong> {formatMoney(d.amount)}
+                </span>
+              )}
+              {d.vendor && (
+                <span>
+                  <strong>Vendor</strong> {d.vendor}
+                </span>
+              )}
             </div>
           </li>
         ))}
       </ul>
-    </section>
+    </>
   );
 }
 
-function Actions({ actions }: { actions: ActionItem[] }) {
+function Actions({
+  actions,
+  openCount,
+}: {
+  actions: import('../types').ActionItem[];
+  openCount: number;
+}) {
   if (actions.length === 0) return null;
   return (
-    <section className="detail-section">
-      <h2>
-        Action items <span className="count">({actions.length})</span>
-      </h2>
-      <ul className="actions">
+    <>
+      <div className="section-label">
+        Action items <span className="meta">· {openCount} open</span>
+      </div>
+      <ul className="action-list">
         {actions.map((a) => (
           <ActionCard key={a.id} action={a} />
         ))}
       </ul>
-    </section>
+    </>
   );
 }

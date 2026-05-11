@@ -62,14 +62,12 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
 
   if (mode === 'edit' && !existing) {
     return (
-      <div className="detail">
-        <p>
-          <a href="#" className="back">
-            ← Agenda
-          </a>
-        </p>
+      <main className="page">
+        <a href="#" className="back-link">
+          ← Agenda
+        </a>
         <p className="empty">Item not found.</p>
-      </div>
+      </main>
     );
   }
 
@@ -117,19 +115,22 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
   const backHref = mode === 'edit' && itemId ? itemHref(itemId) : '#';
 
   return (
-    <div className="detail">
-      <p>
-        <a href={backHref} className="back">
-          ← Back
-        </a>
-      </p>
-      <h1>{mode === 'create' ? 'New item' : 'Edit item'}</h1>
+    <main className="page">
+      <a href={backHref} className="back-link">
+        ← Back
+      </a>
+      <header className="page-header">
+        <div>
+          <div className="eyebrow">{mode === 'create' ? 'Add to registry' : 'Edit registry entry'}</div>
+          <h1>{mode === 'create' ? 'New item' : 'Edit item'}</h1>
+        </div>
+      </header>
       {existing && (
-        <p className="form-status">
+        <div className="drift-banner" style={{ background: 'var(--surface-2)', color: 'var(--ink-2)', borderColor: 'var(--hairline-2)' }}>
           Status is <strong>{existing.status}</strong> — change via a meeting entry, not here.
-        </p>
+        </div>
       )}
-      <form className="item-form" onSubmit={submit}>
+      <form className="form" onSubmit={submit}>
         <label className="form-field">
           <span>Title</span>
           <input
@@ -255,14 +256,14 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
         {error && <p className="form-error">{error}</p>}
 
         <div className="form-actions">
-          <button type="submit" className="primary" disabled={submitting}>
+          <button type="submit" className="btn btn-primary" disabled={submitting}>
             {submitting ? 'Saving…' : mode === 'create' ? 'Create item' : 'Save changes'}
           </button>
-          <button type="button" onClick={cancel} disabled={submitting}>
+          <button type="button" className="btn btn-ghost" onClick={cancel} disabled={submitting}>
             Cancel
           </button>
         </div>
       </form>
-    </div>
+    </main>
   );
 }

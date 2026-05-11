@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { ActionCard } from './ActionsDashboard';
+import {
+  ENTRY_SECTION_COLOR,
+  ENTRY_SECTION_LABEL,
+  STATUS_PILL,
+  eyebrowDate,
+  longDate,
+} from '../design/tokens';
 import { itemHref, meetingsHref } from '../routing/hashRoute';
 import {
   useStore,
@@ -19,18 +25,12 @@ import type {
   MeetingEntry,
   MeetingType,
 } from '../types';
+import { ActionCard } from './ActionsDashboard';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 const SECTION_OPTIONS: EntrySection[] = ['Update', 'OldBusiness', 'NewBusiness', 'OtherBusiness'];
 const DECISION_TYPES: DecisionType[] = ['Approval', 'Denial', 'Authorization', 'Procedural'];
 const MEETING_TYPES: MeetingType[] = ['Regular', 'Special'];
-
-const SECTION_LABEL: Record<EntrySection, string> = {
-  Update: 'Updates',
-  OldBusiness: 'Old business',
-  NewBusiness: 'New business',
-  OtherBusiness: 'Other business',
-};
 
 interface MeetingDetailProps {
   meetingId: string;
@@ -72,24 +72,20 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
 
   if (!meeting) {
     return (
-      <div className="detail">
-        <p>
-          <a href={meetingsHref} className="back">
-            ← Meetings
-          </a>
-        </p>
+      <main className="page">
+        <a href={meetingsHref} className="back-link">
+          ← Meetings
+        </a>
         <p className="empty">Meeting not found.</p>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="detail">
-      <p>
-        <a href={meetingsHref} className="back">
-          ← Meetings
-        </a>
-      </p>
+    <main className="page">
+      <a href={meetingsHref} className="back-link">
+        ← Meetings
+      </a>
 
       <MeetingHeader meeting={meeting} />
 
@@ -106,7 +102,7 @@ export function MeetingDetail({ meetingId }: MeetingDetailProps) {
           meeting={meeting}
         />
       ))}
-    </div>
+    </main>
   );
 }
 
@@ -115,54 +111,64 @@ function MeetingHeader({ meeting }: { meeting: Meeting }) {
   if (editing) {
     return <MeetingEdit meeting={meeting} onClose={() => setEditing(false)} />;
   }
-  const factRows: Array<[string, string]> = [];
-  if (meeting.location) factRows.push(['Location', meeting.location]);
-  if (meeting.openingPrayerBy) factRows.push(['Opening prayer', meeting.openingPrayerBy]);
-  if (meeting.adjournedAt) factRows.push(['Adjourned', meeting.adjournedAt]);
-  if (meeting.nextMeetingDate) factRows.push(['Next meeting', meeting.nextMeetingDate]);
-  if (meeting.openCloseThisMonth) factRows.push(['Open/close (this mo.)', meeting.openCloseThisMonth]);
-  if (meeting.openCloseNextMonth) factRows.push(['Open/close (next mo.)', meeting.openCloseNextMonth]);
+
+  const facts: Array<[string, string]> = [];
+  if (meeting.location) facts.push(['Location', meeting.location]);
+  if (meeting.openingPrayerBy) facts.push(['Opening prayer', meeting.openingPrayerBy]);
+  if (meeting.adjournedAt) facts.push(['Adjourned', meeting.adjournedAt]);
+  if (meeting.nextMeetingDate) facts.push(['Next meeting', longDate(meeting.nextMeetingDate)]);
+  if (meeting.openCloseThisMonth) facts.push(['Open/close this month', meeting.openCloseThisMonth]);
+  if (meeting.openCloseNextMonth) facts.push(['Open/close next month', meeting.openCloseNextMonth]);
 
   return (
     <header className="detail-header">
-      <div className="detail-header-row">
+      <div className="badge-row">
+        <span className="status-pill" style={{ background: 'var(--sage-soft)', color: 'var(--sage)' }}>
+          {meeting.meetingType}
+        </span>
+        <span className="eyebrow" style={{ margin: 0 }}>{eyebrowDate(meeting.meetingDate)}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <h1>{meeting.title}</h1>
-        <button type="button" className="button-link" onClick={() => setEditing(true)}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          style={{ flex: '0 0 auto' }}
+          onClick={() => setEditing(true)}
+        >
           Edit
         </button>
       </div>
-      <div className="detail-badges">
-        <span className="badge">{meeting.meetingType}</span>
-        <span className="badge">{meeting.meetingDate}</span>
-      </div>
-      {factRows.length > 0 && (
-        <dl className="facts">
-          {factRows.map(([k, v]) => (
-            <div key={k} className="fact">
+
+      {facts.length > 0 && (
+        <dl className="facts-card" style={{ marginTop: 14 }}>
+          {facts.map(([k, v]) => (
+            <div key={k} className="facts-row">
               <dt>{k}</dt>
               <dd>{v}</dd>
             </div>
           ))}
         </dl>
       )}
+
       {(meeting.membersPresent || meeting.membersAbsent || meeting.guests) && (
-        <dl className="facts">
+        <dl className="facts-card">
           {meeting.membersPresent && (
-            <div className="fact">
+            <div className="facts-row">
               <dt>Present</dt>
-              <dd style={{ whiteSpace: 'pre-wrap' }}>{meeting.membersPresent}</dd>
+              <dd>{meeting.membersPresent}</dd>
             </div>
           )}
           {meeting.membersAbsent && (
-            <div className="fact">
+            <div className="facts-row">
               <dt>Absent</dt>
-              <dd style={{ whiteSpace: 'pre-wrap' }}>{meeting.membersAbsent}</dd>
+              <dd>{meeting.membersAbsent}</dd>
             </div>
           )}
           {meeting.guests && (
-            <div className="fact">
+            <div className="facts-row">
               <dt>Guests</dt>
-              <dd style={{ whiteSpace: 'pre-wrap' }}>{meeting.guests}</dd>
+              <dd>{meeting.guests}</dd>
             </div>
           )}
         </dl>
@@ -210,7 +216,7 @@ function MeetingEdit({ meeting, onClose }: { meeting: Meeting; onClose: () => vo
   };
 
   return (
-    <form className="add-update-form" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <div className="form-row">
         <label className="form-field">
           <span>Date</span>
@@ -321,10 +327,10 @@ function MeetingEdit({ meeting, onClose }: { meeting: Meeting; onClose: () => vo
       </label>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Save meeting'}
         </button>
-        <button type="button" onClick={onClose} disabled={submitting}>
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
           Cancel
         </button>
       </div>
@@ -353,14 +359,12 @@ function AddEntry({
   const [error, setError] = useState<string | null>(null);
 
   const candidateItems = useMemo(() => {
-    return items
-      .slice()
-      .sort((a, b) => {
-        const au = usedItemIds.has(a.id) ? 1 : 0;
-        const bu = usedItemIds.has(b.id) ? 1 : 0;
-        if (au !== bu) return au - bu;
-        return a.title.localeCompare(b.title);
-      });
+    return items.slice().sort((a, b) => {
+      const au = usedItemIds.has(a.id) ? 1 : 0;
+      const bu = usedItemIds.has(b.id) ? 1 : 0;
+      if (au !== bu) return au - bu;
+      return a.title.localeCompare(b.title);
+    });
   }, [items, usedItemIds]);
 
   const reset = () => {
@@ -402,19 +406,18 @@ function AddEntry({
 
   if (!open) {
     return (
-      <div className="add-update">
-        <button onClick={() => setOpen(true)} className="primary">
-          Add entry
-        </button>
-        <span className="meta" style={{ marginLeft: 12 }}>
-          {entries.length} {entries.length === 1 ? 'entry' : 'entries'} so far
-        </span>
-      </div>
+      <button
+        onClick={() => setOpen(true)}
+        className="btn btn-primary"
+        style={{ width: '100%', padding: '14px', fontSize: 15, marginBottom: 16 }}
+      >
+        + Add entry ({entries.length} {entries.length === 1 ? 'recorded' : 'recorded'})
+      </button>
     );
   }
 
   return (
-    <form className="add-update-form" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <div className="form-target">
         Recording entry for <strong>{meeting.title}</strong>
       </div>
@@ -440,7 +443,7 @@ function AddEntry({
           >
             {SECTION_OPTIONS.map((s) => (
               <option key={s} value={s}>
-                {SECTION_LABEL[s]}
+                {ENTRY_SECTION_LABEL[s]}
               </option>
             ))}
           </select>
@@ -471,10 +474,10 @@ function AddEntry({
       </label>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Save entry'}
         </button>
-        <button type="button" onClick={reset} disabled={submitting}>
+        <button type="button" className="btn btn-ghost" onClick={reset} disabled={submitting}>
           Cancel
         </button>
       </div>
@@ -498,15 +501,17 @@ function SectionBlock({
   meeting: Meeting;
 }) {
   return (
-    <section className="agenda-section">
-      <h2>
-        {SECTION_LABEL[section]} <span className="count">({entries.length})</span>
-      </h2>
+    <section className="section">
+      <div className="section-head">
+        <span className="dot" style={{ background: ENTRY_SECTION_COLOR[section] }} />
+        <h2>{ENTRY_SECTION_LABEL[section]}</h2>
+        <span className="count">{entries.length}</span>
+      </div>
       {entries.length === 0 ? (
-        <p className="empty">No entries.</p>
+        <div className="section-card section-card-empty">No entries.</div>
       ) : (
-        <ol className="timeline">
-          {entries.map((entry) => (
+        <ol className="timeline" style={{ paddingLeft: 22 }}>
+          {entries.map((entry, i) => (
             <EntryRow
               key={entry.id}
               entry={entry}
@@ -514,6 +519,7 @@ function SectionBlock({
               actions={actions.filter((a) => a.meetingEntryId === entry.id)}
               decisions={decisions.filter((d) => d.meetingEntryId === entry.id)}
               meeting={meeting}
+              isFirst={i === 0}
             />
           ))}
         </ol>
@@ -528,25 +534,33 @@ function EntryRow({
   actions,
   decisions,
   meeting,
+  isFirst,
 }: {
   entry: MeetingEntry;
   item?: Item;
   actions: ActionItem[];
   decisions: Decision[];
   meeting: Meeting;
+  isFirst: boolean;
 }) {
   return (
-    <li className="timeline-row">
+    <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
       <div className="timeline-head">
         {item ? (
-          <a href={itemHref(item.id)} className="title">
+          <a href={itemHref(item.id)} className="timeline-date" style={{ color: 'var(--sage)' }}>
             {item.title}
           </a>
         ) : (
-          <span className="title">[unknown item {entry.itemId}]</span>
+          <span className="timeline-date">[unknown item {entry.itemId}]</span>
         )}
         {entry.statusChangeTo && (
-          <span className={`status status-${entry.statusChangeTo.toLowerCase()}`}>
+          <span
+            className="status-pill"
+            style={{
+              background: STATUS_PILL[entry.statusChangeTo].bg,
+              color: STATUS_PILL[entry.statusChangeTo].fg,
+            }}
+          >
             → {entry.statusChangeTo}
           </span>
         )}
@@ -561,7 +575,7 @@ function EntryRow({
       )}
 
       {actions.length > 0 && (
-        <ul className="actions">
+        <ul className="action-list" style={{ marginTop: 8 }}>
           {actions.map((a) => (
             <ActionCard key={a.id} action={a} />
           ))}
@@ -569,34 +583,50 @@ function EntryRow({
       )}
 
       {decisions.length > 0 && (
-        <ul className="decisions">
+        <ul className="action-list" style={{ marginTop: 8 }}>
           {decisions.map((d) => (
-            <li key={d.id} className="decision-row">
+            <li key={d.id} className="decision-card">
               <div className="decision-head">
                 <span className="badge">{d.decisionType}</span>
               </div>
               <div className="decision-summary">{d.summary}</div>
               <div className="decision-meta">
-                {d.motionBy && <span>Motion: {d.motionBy}</span>}
-                {d.secondBy && <span>Second: {d.secondBy}</span>}
-                {d.vote && <span>Vote: {d.vote}</span>}
+                {d.motionBy && (
+                  <span>
+                    <strong>Motion</strong> {d.motionBy}
+                  </span>
+                )}
+                {d.secondBy && (
+                  <span>
+                    <strong>Second</strong> {d.secondBy}
+                  </span>
+                )}
+                {d.vote && (
+                  <span>
+                    <strong>Vote</strong> {d.vote}
+                  </span>
+                )}
                 {typeof d.amount === 'number' && (
                   <span>
-                    $
-                    {d.amount.toLocaleString(undefined, {
+                    <strong>Amount</strong> $
+                    {d.amount.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </span>
                 )}
-                {d.vendor && <span>Vendor: {d.vendor}</span>}
+                {d.vendor && (
+                  <span>
+                    <strong>Vendor</strong> {d.vendor}
+                  </span>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
 
-      <EntryAddons entry={entry} item={item} meeting={meeting} />
+      {item && <EntryAddons entry={entry} item={item} meeting={meeting} />}
     </li>
   );
 }
@@ -607,38 +637,27 @@ function EntryAddons({
   meeting,
 }: {
   entry: MeetingEntry;
-  item?: Item;
+  item: Item;
   meeting: Meeting;
 }) {
   const [mode, setMode] = useState<'idle' | 'action' | 'decision'>('idle');
-  if (!item) return null;
   return (
-    <div className="entry-addons">
+    <div style={{ marginTop: 8 }}>
       {mode === 'idle' && (
         <div className="form-actions">
-          <button type="button" onClick={() => setMode('action')}>
+          <button type="button" className="btn btn-ghost" onClick={() => setMode('action')}>
             + Action item
           </button>
-          <button type="button" onClick={() => setMode('decision')}>
+          <button type="button" className="btn btn-ghost" onClick={() => setMode('decision')}>
             + Decision
           </button>
         </div>
       )}
       {mode === 'action' && (
-        <ActionForm
-          entry={entry}
-          item={item}
-          meeting={meeting}
-          onClose={() => setMode('idle')}
-        />
+        <ActionForm entry={entry} item={item} meeting={meeting} onClose={() => setMode('idle')} />
       )}
       {mode === 'decision' && (
-        <DecisionForm
-          entry={entry}
-          item={item}
-          meeting={meeting}
-          onClose={() => setMode('idle')}
-        />
+        <DecisionForm entry={entry} item={item} meeting={meeting} onClose={() => setMode('idle')} />
       )}
     </div>
   );
@@ -682,7 +701,7 @@ function ActionForm({
   };
 
   return (
-    <form className="add-update-form" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <label className="form-field">
         <span>What needs to happen</span>
         <textarea
@@ -713,10 +732,10 @@ function ActionForm({
       </div>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Add action'}
         </button>
-        <button type="button" onClick={onClose} disabled={submitting}>
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
           Cancel
         </button>
       </div>
@@ -778,7 +797,7 @@ function DecisionForm({
   };
 
   return (
-    <form className="add-update-form" onSubmit={submit}>
+    <form className="form" onSubmit={submit}>
       <label className="form-field">
         <span>Summary</span>
         <input
@@ -854,10 +873,10 @@ function DecisionForm({
       </div>
       {error && <p className="form-error">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="primary" disabled={submitting}>
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
           {submitting ? 'Saving…' : 'Add decision'}
         </button>
-        <button type="button" onClick={onClose} disabled={submitting}>
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
           Cancel
         </button>
       </div>
