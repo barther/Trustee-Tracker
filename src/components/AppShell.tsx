@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PublicClientApplication } from '@azure/msal-browser';
 import { initializeMsal, loginRequest } from '../auth/msal';
 import { loadEnv, type AppEnv } from '../env';
+import { useHashRoute } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import { AgendaView } from './AgendaView';
+import { ItemDetail } from './ItemDetail';
 
 type Phase = 'boot' | 'config-error' | 'signed-out' | 'authenticating' | 'ready';
 
@@ -18,6 +20,7 @@ export function AppShell() {
   const error = useStore((s) => s.error);
   const hydrate = useStore((s) => s.hydrate);
   const setConfigError = useStore((s) => s.setConfigError);
+  const route = useHashRoute();
 
   useEffect(() => {
     let cancelled = false;
@@ -119,6 +122,8 @@ export function AppShell() {
           <p className="error">{error.message}</p>
           <button onClick={retry}>Retry</button>
         </Centered>
+      ) : route.view === 'item' ? (
+        <ItemDetail itemId={route.itemId} />
       ) : (
         <AgendaView />
       )}

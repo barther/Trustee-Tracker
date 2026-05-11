@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { generateAgenda, type Agenda, type AgendaEntry } from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import { itemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 
 interface SectionProps {
@@ -21,31 +22,33 @@ function Section({ title, entries, emptyHint }: SectionProps) {
         <ul>
           {entries.map((entry) => (
             <li key={entry.item.id} className="agenda-row">
-              <div className="row-head">
-                <span className="title">{entry.item.title}</span>
-                {entry.item.assignedTo && (
-                  <span className="assigned">{entry.item.assignedTo}</span>
-                )}
-              </div>
-              <div className="row-meta">
-                {entry.item.tags.length > 0 && (
-                  <span className="tags">
-                    {entry.item.tags.map((t) => (
-                      <span key={t} className="tag">
-                        {t}
-                      </span>
-                    ))}
-                  </span>
-                )}
-                {entry.lastDiscussedDate ? (
-                  <span className="last">Last: {entry.lastDiscussedDate}</span>
-                ) : entry.item.firstRaisedDate ? (
-                  <span className="last">Raised: {entry.item.firstRaisedDate}</span>
-                ) : null}
-                {entry.item.onHoldReason && (
-                  <span className="hold">On hold: {entry.item.onHoldReason}</span>
-                )}
-              </div>
+              <a href={itemHref(entry.item.id)} className="row-link">
+                <div className="row-head">
+                  <span className="title">{entry.item.title}</span>
+                  {entry.item.assignedTo && (
+                    <span className="assigned">{entry.item.assignedTo}</span>
+                  )}
+                </div>
+                <div className="row-meta">
+                  {entry.item.tags.length > 0 && (
+                    <span className="tags">
+                      {entry.item.tags.map((t) => (
+                        <span key={t} className="tag">
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                  {entry.lastDiscussedDate ? (
+                    <span className="last">Last: {entry.lastDiscussedDate}</span>
+                  ) : entry.item.firstRaisedDate ? (
+                    <span className="last">Raised: {entry.item.firstRaisedDate}</span>
+                  ) : null}
+                  {entry.item.onHoldReason && (
+                    <span className="hold">On hold: {entry.item.onHoldReason}</span>
+                  )}
+                </div>
+              </a>
             </li>
           ))}
         </ul>

@@ -4,11 +4,12 @@ import { createGraphClient } from '../graph/client';
 import {
   ListMissingError,
   fetchActionItems,
+  fetchDecisions,
   fetchItems,
   fetchMeetingEntries,
 } from '../graph/api';
 import type { AppEnv } from '../env';
-import type { ActionItem, Item, MeetingEntry } from '../types';
+import type { ActionItem, Decision, Item, MeetingEntry } from '../types';
 
 export type LoadKind = 'config' | 'auth' | 'unprovisioned' | 'graph' | 'unknown';
 
@@ -26,6 +27,7 @@ interface StoreState {
   items: Item[];
   meetingEntries: MeetingEntry[];
   actionItems: ActionItem[];
+  decisions: Decision[];
   hydrate: (instance: PublicClientApplication, env: AppEnv) => Promise<void>;
   setConfigError: (missing: string[]) => void;
   reset: () => void;
@@ -51,20 +53,23 @@ export const useStore = create<StoreState>((set) => ({
   items: [],
   meetingEntries: [],
   actionItems: [],
+  decisions: [],
   async hydrate(instance, env) {
     set({ status: 'loading', error: undefined });
     const client = createGraphClient(instance);
     try {
-      const [items, meetingEntries, actionItems] = await Promise.all([
+      const [items, meetingEntries, actionItems, decisions] = await Promise.all([
         fetchItems(client, env.siteId, env.lists.items),
         fetchMeetingEntries(client, env.siteId, env.lists.meetingEntries),
         fetchActionItems(client, env.siteId, env.lists.actionItems),
+        fetchDecisions(client, env.siteId, env.lists.decisions),
       ]);
       set({
         status: 'ready',
         items,
         meetingEntries,
         actionItems,
+        decisions,
         error: undefined,
       });
     } catch (err) {
@@ -86,6 +91,7 @@ export const useStore = create<StoreState>((set) => ({
       items: [],
       meetingEntries: [],
       actionItems: [],
+      decisions: [],
       error: undefined,
     });
   },
