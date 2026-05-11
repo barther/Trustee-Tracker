@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import { eyebrowDate, shortDate } from '../design/tokens';
 import { meetingHref } from '../routing/hashRoute';
 import { useStore, type MeetingDraft } from '../store/useStore';
-import type { Meeting, MeetingType } from '../types';
+import type { Meeting, MeetingEntry, MeetingType } from '../types';
 
 const MEETING_TYPES: MeetingType[] = ['Regular', 'Special'];
 
@@ -14,7 +15,7 @@ function emptyDraft(): MeetingDraft {
   };
 }
 
-function entryCountFor(meetingId: string, entries: { meetingId: string }[]): number {
+function entryCountFor(meetingId: string, entries: MeetingEntry[]): number {
   return entries.filter((e) => e.meetingId === meetingId).length;
 }
 
@@ -52,21 +53,24 @@ export function MeetingsList() {
   };
 
   return (
-    <div className="meetings">
-      <header className="agenda-header">
-        <h1>Meetings</h1>
-        <div className="agenda-controls">
-          <a href="#" className="back">
-            ← Agenda
-          </a>
-          <button className="primary" onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : '+ New meeting'}
-          </button>
+    <main className="page">
+      <header className="page-header">
+        <div>
+          <div className="eyebrow">Meeting records</div>
+          <h1>Meetings</h1>
         </div>
+        <button
+          type="button"
+          className="btn-fab"
+          aria-label="New meeting"
+          onClick={() => setShowForm((v) => !v)}
+        >
+          {showForm ? '×' : '+'}
+        </button>
       </header>
 
       {showForm && (
-        <form className="add-update-form" onSubmit={submit}>
+        <form className="form" onSubmit={submit}>
           <div className="form-row">
             <label className="form-field">
               <span>Date</span>
@@ -104,11 +108,12 @@ export function MeetingsList() {
           </label>
           {error && <p className="form-error">{error}</p>}
           <div className="form-actions">
-            <button type="submit" className="primary" disabled={submitting}>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
               {submitting ? 'Creating…' : 'Create meeting'}
             </button>
             <button
               type="button"
+              className="btn btn-ghost"
               onClick={() => {
                 setShowForm(false);
                 setDraft(emptyDraft());
@@ -125,30 +130,40 @@ export function MeetingsList() {
       {sorted.length === 0 ? (
         <p className="empty">No meetings yet.</p>
       ) : (
-        <ul className="meeting-list">
+        <ul className="meeting-card-list">
           {sorted.map((m) => (
-            <MeetingRow key={m.id} meeting={m} entryCount={entryCountFor(m.id, meetingEntries)} />
+            <MeetingCard
+              key={m.id}
+              meeting={m}
+              entryCount={entryCountFor(m.id, meetingEntries)}
+            />
           ))}
         </ul>
       )}
-    </div>
+    </main>
   );
 }
 
-function MeetingRow({ meeting, entryCount }: { meeting: Meeting; entryCount: number }) {
+function MeetingCard({
+  meeting,
+  entryCount,
+}: {
+  meeting: Meeting;
+  entryCount: number;
+}) {
   return (
-    <li className="agenda-row">
-      <a href={meetingHref(meeting.id)} className="row-link">
-        <div className="row-head">
-          <span className="title">{meeting.title}</span>
-          <span className="assigned">{meeting.meetingType}</span>
+    <li>
+      <a href={meetingHref(meeting.id)} className="meeting-card">
+        <div className="eyebrow" style={{ marginBottom: 0 }}>
+          {eyebrowDate(meeting.meetingDate)} · {meeting.meetingType}
         </div>
-        <div className="row-meta">
-          <span className="last">{meeting.meetingDate}</span>
-          <span className="last">
+        <div className="meeting-title">{meeting.title}</div>
+        <div className="meeting-meta">
+          <span>{shortDate(meeting.meetingDate)}</span>
+          <span>
             {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
           </span>
-          {meeting.location && <span className="last">{meeting.location}</span>}
+          {meeting.location && <span>{meeting.location}</span>}
         </div>
       </a>
     </li>

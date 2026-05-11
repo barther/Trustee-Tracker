@@ -1,9 +1,15 @@
 import { useMemo, useState } from 'react';
+import { avatarBg, initials, shortDate } from '../design/tokens';
 import { itemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import type { ActionItem, ActionStatus, Meeting } from '../types';
 
-const STATUS_FILTERS: Array<ActionStatus | 'All'> = ['Open', 'Done', 'Dropped', 'All'];
+const STATUS_FILTERS: Array<{ key: ActionStatus | 'All'; label: string }> = [
+  { key: 'Open', label: 'Open' },
+  { key: 'Done', label: 'Done' },
+  { key: 'Dropped', label: 'Dropped' },
+  { key: 'All', label: 'All' },
+];
 
 export function ActionsDashboard() {
   const actions = useStore((s) => s.actionItems);
@@ -17,9 +23,10 @@ export function ActionsDashboard() {
     return m;
   }, [meetings]);
 
-  const filtered = useMemo(() => {
-    return actions.filter((a) => filter === 'All' || a.status === filter);
-  }, [actions, filter]);
+  const filtered = useMemo(
+    () => actions.filter((a) => filter === 'All' || a.status === filter),
+    [actions, filter],
+  );
 
   const byAssignee = useMemo(() => {
     const groups = new Map<string, ActionItem[]>();
@@ -48,25 +55,23 @@ export function ActionsDashboard() {
   }, [actions]);
 
   return (
-    <div className="meetings">
-      <header className="agenda-header">
-        <h1>Action items</h1>
-        <div className="agenda-controls">
-          <a href="#" className="back">
-            ← Agenda
-          </a>
+    <main className="page">
+      <header className="page-header">
+        <div>
+          <div className="eyebrow">Between meetings</div>
+          <h1>Action items</h1>
         </div>
       </header>
 
-      <div className="filter-chips">
-        {STATUS_FILTERS.map((s) => (
+      <div className="chip-row">
+        {STATUS_FILTERS.map((f) => (
           <button
-            key={s}
+            key={f.key}
             type="button"
-            className={`chip ${filter === s ? 'chip-active' : ''}`}
-            onClick={() => setFilter(s)}
+            className={`chip ${filter === f.key ? 'active' : ''}`}
+            onClick={() => setFilter(f.key)}
           >
-            {s} ({counts[s]})
+            {f.label} <span style={{ opacity: 0.7 }}>{counts[f.key]}</span>
           </button>
         ))}
       </div>
@@ -75,11 +80,26 @@ export function ActionsDashboard() {
         <p className="empty">No action items match this filter.</p>
       ) : (
         byAssignee.map(([assignee, list]) => (
-          <section key={assignee} className="agenda-section">
-            <h2>
-              {assignee} <span className="count">({list.length})</span>
-            </h2>
-            <ul className="actions">
+          <section key={assignee} className="section">
+            <div className="section-head">
+              <span
+                className="avatar"
+                style={{
+                  width: 24,
+                  height: 24,
+                  background: avatarBg(assignee),
+                  border: 'none',
+                  fontSize: 10,
+                }}
+              >
+                {initials(assignee)}
+              </span>
+              <h2 style={{ textTransform: 'none', letterSpacing: 0, fontSize: 14 }}>
+                {assignee}
+              </h2>
+              <span className="count">{list.length}</span>
+            </div>
+            <ul className="action-list">
               {list.map((action) => (
                 <ActionCard key={action.id} action={action} showItemLink />
               ))}
@@ -87,7 +107,7 @@ export function ActionsDashboard() {
           </section>
         ))
       )}
-    </div>
+    </main>
   );
 }
 
@@ -172,113 +192,132 @@ export function ActionCard({
     [meetings],
   );
 
+  const checkboxGlyph =
+    action.status === 'Done' ? '✓' : action.status === 'Dropped' ? '—' : '';
+
   return (
-    <li className={`action-row action-${action.status.toLowerCase()}`}>
-      <div className="action-head">
-        <span className="badge">{action.status}</span>
-        <span className="action-assignee">{action.assignee}</span>
-        {action.dueHint && <span className="action-due">Due: {action.dueHint}</span>}
-        {assignedAt && (
-          <span className="meta">Assigned {assignedAt.meetingDate}</span>
+    <li className={`action-card ${action.status.toLowerCase()}`}>
+      <span className="action-checkbox">{checkboxGlyph}</span>
+      <div className="action-body">
+        <div className="action-top-line">
+          <span className="action-assignee">{action.assignee}</span>
+          {action.dueHint && <span>· due {action.dueHint}</span>}
+          {assignedAt && <span>· assigned {shortDate(assignedAt.meetingDate)}</span>}
+        </div>
+        <div className="action-desc">{action.description}</div>
+        {showItemLink && itemTitle && (
+          <div className="action-meta">
+            <a href={itemHref(action.itemId)}>{itemTitle}</a>
+          </div>
+        )}
+        {action.completedNote && (
+          <div className="action-note">
+            {completedAt && (
+              <strong>Completed {shortDate(completedAt.meetingDate)}: </strong>
+            )}
+            {action.completedNote}
+          </div>
+        )}
+        {action.status !== 'Open' && !action.completedNote && completedAt && (
+          <div className="action-meta">
+            Completed {shortDate(completedAt.meetingDate)}
+          </div>
+        )}
+
+        {mode === 'idle' && (
+          <div className="action-row-actions">
+            {action.status === 'Open' ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setMode('complete')}
+                  disabled={submitting}
+                >
+                  Mark done
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setMode('drop')}
+                  disabled={submitting}
+                >
+                  Drop
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={reopen}
+                disabled={submitting}
+              >
+                Reopen
+              </button>
+            )}
+          </div>
+        )}
+
+        {mode === 'complete' && (
+          <form className="form" onSubmit={submitComplete} style={{ marginTop: 10 }}>
+            <label className="form-field">
+              <span>Completed at meeting (optional)</span>
+              <select
+                value={completedAtMeetingId}
+                onChange={(e) => setCompletedAtMeetingId(e.target.value)}
+              >
+                <option value="">— Between meetings —</option>
+                {sortedMeetings.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Note (optional)</span>
+              <textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                autoFocus
+              />
+            </label>
+            {error && <p className="form-error">{error}</p>}
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? 'Saving…' : 'Mark done'}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={reset} disabled={submitting}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {mode === 'drop' && (
+          <form className="form" onSubmit={submitDrop} style={{ marginTop: 10 }}>
+            <label className="form-field">
+              <span>Reason (optional)</span>
+              <textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                autoFocus
+              />
+            </label>
+            {error && <p className="form-error">{error}</p>}
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? 'Saving…' : 'Drop'}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={reset} disabled={submitting}>
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
       </div>
-      <div className="action-desc">{action.description}</div>
-      {showItemLink && itemTitle && (
-        <div className="action-context">
-          Item:{' '}
-          <a href={itemHref(action.itemId)} className="row-link" style={{ display: 'inline' }}>
-            {itemTitle}
-          </a>
-        </div>
-      )}
-      {action.completedNote && (
-        <div className="action-note">
-          {completedAt && `Completed ${completedAt.meetingDate}: `}
-          {action.completedNote}
-        </div>
-      )}
-      {action.status !== 'Open' && !action.completedNote && completedAt && (
-        <div className="action-note">Completed {completedAt.meetingDate}</div>
-      )}
-
-      {mode === 'idle' && (
-        <div className="form-actions">
-          {action.status === 'Open' ? (
-            <>
-              <button type="button" onClick={() => setMode('complete')} disabled={submitting}>
-                Mark done
-              </button>
-              <button type="button" onClick={() => setMode('drop')} disabled={submitting}>
-                Drop
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={reopen} disabled={submitting}>
-              Reopen
-            </button>
-          )}
-        </div>
-      )}
-
-      {mode === 'complete' && (
-        <form className="add-update-form" onSubmit={submitComplete}>
-          <label className="form-field">
-            <span>Completed at meeting (optional)</span>
-            <select
-              value={completedAtMeetingId}
-              onChange={(e) => setCompletedAtMeetingId(e.target.value)}
-            >
-              <option value="">— Between meetings —</option>
-              {sortedMeetings.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>Note (optional)</span>
-            <textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              autoFocus
-            />
-          </label>
-          {error && <p className="form-error">{error}</p>}
-          <div className="form-actions">
-            <button type="submit" className="primary" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Mark done'}
-            </button>
-            <button type="button" onClick={reset} disabled={submitting}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {mode === 'drop' && (
-        <form className="add-update-form" onSubmit={submitDrop}>
-          <label className="form-field">
-            <span>Reason (optional)</span>
-            <textarea
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              autoFocus
-            />
-          </label>
-          {error && <p className="form-error">{error}</p>}
-          <div className="form-actions">
-            <button type="submit" className="primary" disabled={submitting}>
-              {submitting ? 'Saving…' : 'Drop'}
-            </button>
-            <button type="button" onClick={reset} disabled={submitting}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
     </li>
   );
 }

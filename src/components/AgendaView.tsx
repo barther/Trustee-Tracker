@@ -1,108 +1,333 @@
 import { useMemo, useState } from 'react';
-import { generateAgenda, type Agenda, type AgendaEntry } from '../agenda/generator';
+import {
+  generateAgenda,
+  type Agenda,
+  type AgendaEntry,
+} from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import {
+  SECTION_COLOR,
+  SECTION_LABEL,
+  SECTION_SUB,
+  avatarBg,
+  eyebrowDate,
+  initials,
+  longDate,
+  parseAssignees,
+  shortDate,
+  tagDisplay,
+  tagPillStyle,
+} from '../design/tokens';
 import { itemHref, newItemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
+import type { ActionItem, AgendaSection, Tag } from '../types';
 
-interface SectionProps {
-  title: string;
-  entries: AgendaEntry[];
-  emptyHint: string;
-}
+type FilterKey = 'all' | AgendaSection;
 
-function Section({ title, entries, emptyHint }: SectionProps) {
-  return (
-    <section className="agenda-section">
-      <h2>
-        {title} <span className="count">({entries.length})</span>
-      </h2>
-      {entries.length === 0 ? (
-        <p className="empty">{emptyHint}</p>
-      ) : (
-        <ul>
-          {entries.map((entry) => (
-            <li key={entry.item.id} className="agenda-row">
-              <a href={itemHref(entry.item.id)} className="row-link">
-                <div className="row-head">
-                  <span className="title">{entry.item.title}</span>
-                  {entry.item.assignedTo && (
-                    <span className="assigned">{entry.item.assignedTo}</span>
-                  )}
-                </div>
-                <div className="row-meta">
-                  {entry.item.tags.length > 0 && (
-                    <span className="tags">
-                      {entry.item.tags.map((t) => (
-                        <span key={t} className="tag">
-                          {t}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                  {entry.lastDiscussedDate ? (
-                    <span className="last">Last: {entry.lastDiscussedDate}</span>
-                  ) : entry.item.firstRaisedDate ? (
-                    <span className="last">Raised: {entry.item.firstRaisedDate}</span>
-                  ) : null}
-                  {entry.item.onHoldReason && (
-                    <span className="hold">On hold: {entry.item.onHoldReason}</span>
-                  )}
-                </div>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'Update', label: 'Updates' },
+  { key: 'OldBusiness', label: 'Old' },
+  { key: 'NewBusiness', label: 'New' },
+  { key: 'Tabled', label: 'Tabled' },
+];
+
+const SECTIONS: AgendaSection[] = ['Update', 'OldBusiness', 'NewBusiness', 'Tabled'];
+
+function entriesFor(agenda: Agenda, section: AgendaSection): AgendaEntry[] {
+  switch (section) {
+    case 'Update':
+      return agenda.updates;
+    case 'OldBusiness':
+      return agenda.oldBusiness;
+    case 'NewBusiness':
+      return agenda.newBusiness;
+    case 'Tabled':
+      return agenda.tabled;
+  }
 }
 
 export function AgendaView() {
   const [targetDate, setTargetDate] = useState<string>(() =>
     toIsoDate(nextThirdTuesday(new Date())),
   );
+  const [filter, setFilter] = useState<FilterKey>('all');
+
   const items = useStore((s) => s.items);
   const meetingEntries = useStore((s) => s.meetingEntries);
+  const actionItems = useStore((s) => s.actionItems);
 
-  const agenda: Agenda = useMemo(
+  const agenda = useMemo(
     () => generateAgenda(items, meetingEntries, targetDate),
     [items, meetingEntries, targetDate],
   );
 
+  const openActionsByItem = useMemo(() => {
+    const m = new Map<string, ActionItem[]>();
+    for (const a of actionItems) {
+      if (a.status !== 'Open') continue;
+      if (!m.has(a.itemId)) m.set(a.itemId, []);
+      m.get(a.itemId)!.push(a);
+    }
+    return m;
+  }, [actionItems]);
+
+  const counts = useMemo(
+    () => ({
+      Update: agenda.updates.length,
+      OldBusiness: agenda.oldBusiness.length,
+      NewBusiness: agenda.newBusiness.length,
+      Tabled: agenda.tabled.length,
+    }),
+    [agenda],
+  );
+
+  const visibleSections =
+    filter === 'all' ? SECTIONS : SECTIONS.filter((s) => s === filter);
+
   return (
-    <div className="agenda">
-      <header className="agenda-header">
-        <h1>Trustees Agenda</h1>
-        <div className="agenda-controls">
-          <label>
-            Meeting date{' '}
-            <input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-            />
-          </label>
-          <a href={newItemHref} className="primary button-link">
-            + New item
-          </a>
+    <main className="page">
+      <header className="page-header">
+        <div>
+          <div className="eyebrow">
+            {eyebrowDate(targetDate)} · Regular meeting
+          </div>
+          <h1>{shortDate(targetDate)} agenda</h1>
         </div>
+        <a href={newItemHref} className="btn-fab" aria-label="New item">
+          +
+        </a>
       </header>
-      <Section title="Updates" entries={agenda.updates} emptyHint="No standing updates." />
-      <Section
-        title="Old Business"
-        entries={agenda.oldBusiness}
-        emptyHint="Nothing carried forward."
-      />
-      <Section
-        title="New Business"
-        entries={agenda.newBusiness}
-        emptyHint="No new items raised."
-      />
-      <Section
-        title="Tabled"
-        entries={agenda.tabled}
-        emptyHint="No tabled items."
-      />
+
+      <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
+
+      <div className="stat-strip hide-scrollbar">
+        {SECTIONS.map((section) => (
+          <StatChip
+            key={section}
+            label={SECTION_LABEL[section]}
+            n={counts[section]}
+            color={SECTION_COLOR[section]}
+            active={filter === 'all' || filter === section}
+            onClick={() =>
+              setFilter((f) => (f === section ? 'all' : section))
+            }
+          />
+        ))}
+      </div>
+
+      <div className="chip-row">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            className={`chip ${filter === f.key ? 'active' : ''}`}
+            onClick={() => setFilter(f.key)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {visibleSections.map((section) => (
+        <Section
+          key={section}
+          section={section}
+          entries={entriesFor(agenda, section)}
+          openActionsByItem={openActionsByItem}
+        />
+      ))}
+    </main>
+  );
+}
+
+function DatePickerRow({
+  targetDate,
+  onChange,
+}: {
+  targetDate: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="chip-row" style={{ marginBottom: 8 }}>
+      <label
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          fontSize: 12.5,
+          color: 'var(--ink-3)',
+        }}
+      >
+        Meeting date
+        <input
+          type="date"
+          value={targetDate}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            font: 'inherit',
+            fontSize: 13,
+            padding: '6px 10px',
+            border: '1px solid var(--hairline-2)',
+            borderRadius: 'var(--radius-pill)',
+            background: 'var(--surface)',
+            color: 'var(--ink)',
+          }}
+        />
+        <span className="meta" title={longDate(targetDate)}>
+          {longDate(targetDate)}
+        </span>
+      </label>
     </div>
   );
+}
+
+function StatChip({
+  label,
+  n,
+  color,
+  active,
+  onClick,
+}: {
+  label: string;
+  n: number;
+  color: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="stat"
+      onClick={onClick}
+      style={{
+        borderColor: active ? color : undefined,
+        background: active ? 'var(--surface-2)' : undefined,
+      }}
+    >
+      <span className="stat-n" style={{ color }}>
+        {n}
+      </span>
+      <span className="stat-label">{label}</span>
+    </button>
+  );
+}
+
+function Section({
+  section,
+  entries,
+  openActionsByItem,
+}: {
+  section: AgendaSection;
+  entries: AgendaEntry[];
+  openActionsByItem: Map<string, ActionItem[]>;
+}) {
+  return (
+    <section className="section">
+      <div className="section-head">
+        <span
+          className="dot"
+          style={{ background: SECTION_COLOR[section] }}
+        />
+        <h2>{SECTION_LABEL[section]}</h2>
+        <span className="count">{entries.length}</span>
+        <span className="sub">· {SECTION_SUB[section]}</span>
+      </div>
+      <div className={`section-card ${section === 'Tabled' ? 'tabled' : ''}`}>
+        {entries.length === 0 ? (
+          <div className="section-card-empty">
+            {section === 'Update' && 'No standing updates.'}
+            {section === 'OldBusiness' && 'Nothing carried forward.'}
+            {section === 'NewBusiness' && 'No new items raised.'}
+            {section === 'Tabled' && 'No tabled items.'}
+          </div>
+        ) : (
+          entries.map((entry) => (
+            <AgendaRow
+              key={entry.item.id}
+              entry={entry}
+              openActions={openActionsByItem.get(entry.item.id) ?? []}
+            />
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function AgendaRow({
+  entry,
+  openActions,
+}: {
+  entry: AgendaEntry;
+  openActions: ActionItem[];
+}) {
+  const { item, lastDiscussedDate } = entry;
+  const assignees = parseAssignees(item.assignedTo).slice(0, 2);
+  const tags: Tag[] = item.tags.slice(0, 3);
+  const tagOverflow = item.tags.length - tags.length;
+
+  return (
+    <a
+      href={itemHref(item.id)}
+      className={`agenda-row ${entry.section === 'Tabled' ? 'muted' : ''}`}
+    >
+      {assignees.length > 0 ? (
+        <div className="avatars">
+          {assignees.map((name) => (
+            <span
+              key={name}
+              className="avatar"
+              style={{ background: avatarBg(name) }}
+              title={name}
+            >
+              {initials(name)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="row-body">
+        <div className="row-title-line">
+          <span className="row-title">{item.title}</span>
+        </div>
+        {item.notes && <div className="row-note">{firstLine(item.notes)}</div>}
+        {item.onHoldReason && (
+          <div className="row-onhold">On hold — {item.onHoldReason}</div>
+        )}
+        <div className="row-meta">
+          {tags.map((t) => (
+            <span key={t} className="tag-pill" style={tagPillStyle(t)}>
+              {tagDisplay(t)}
+            </span>
+          ))}
+          {tagOverflow > 0 && (
+            <span
+              className="tag-pill"
+              style={{
+                background: 'var(--surface-2)',
+                color: 'var(--ink-3)',
+              }}
+            >
+              +{tagOverflow}
+            </span>
+          )}
+          <span className="spacer" />
+          <span className="meta-text">
+            {lastDiscussedDate
+              ? shortDate(lastDiscussedDate)
+              : item.firstRaisedDate
+                ? `raised ${shortDate(item.firstRaisedDate)}`
+                : ''}
+            {openActions.length > 0 && <> · {openActions.length}↻</>}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function firstLine(s: string): string {
+  const trimmed = s.trim();
+  const nl = trimmed.indexOf('\n');
+  return nl > 0 ? trimmed.slice(0, nl) : trimmed;
 }

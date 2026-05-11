@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PublicClientApplication } from '@azure/msal-browser';
 import { initializeMsal, loginRequest } from '../auth/msal';
 import { loadEnv, type AppEnv } from '../env';
-import { useHashRoute } from '../routing/hashRoute';
+import { useHashRoute, type Route } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
 import { actionsHref, meetingsHref } from '../routing/hashRoute';
 import { ActionsDashboard } from './ActionsDashboard';
@@ -13,6 +13,36 @@ import { MeetingDetail } from './MeetingDetail';
 import { MeetingsList } from './MeetingsList';
 
 type Phase = 'boot' | 'config-error' | 'signed-out' | 'authenticating' | 'ready';
+
+const AGENDA_HREF = '#';
+
+interface NavItem {
+  href: string;
+  label: string;
+  glyph: string;
+  matches: (r: Route) => boolean;
+}
+
+const NAV: NavItem[] = [
+  {
+    href: AGENDA_HREF,
+    label: 'Agenda',
+    glyph: '☰',
+    matches: (r) => r.view === 'agenda' || r.view === 'item' || r.view === 'newItem' || r.view === 'editItem',
+  },
+  {
+    href: meetingsHref,
+    label: 'Meetings',
+    glyph: '◧',
+    matches: (r) => r.view === 'meetings' || r.view === 'meeting',
+  },
+  {
+    href: actionsHref,
+    label: 'Actions',
+    glyph: '✓',
+    matches: (r) => r.view === 'actions',
+  },
+];
 
 export function AppShell() {
   const envResult = useMemo(() => loadEnv(), []);
@@ -108,8 +138,12 @@ export function AppShell() {
       <Centered>
         <h1>Trustees Agenda</h1>
         <p>Sign in with your church Microsoft 365 account to continue.</p>
-        {msalError && <p className="error">{msalError}</p>}
-        <button onClick={signIn} disabled={phase === 'authenticating' || !msal}>
+        {msalError && <p className="form-error">{msalError}</p>}
+        <button
+          onClick={signIn}
+          disabled={phase === 'authenticating' || !msal}
+          className="btn btn-primary"
+        >
           {phase === 'authenticating' ? 'Signing in…' : 'Sign in'}
         </button>
       </Centered>
@@ -117,15 +151,18 @@ export function AppShell() {
   }
 
   return (
-    <>
-      <TopBar account={account} onSignOut={signOut} />
+    <div className="shell">
+      <UtilityStrip account={account} onSignOut={signOut} />
+      <DesktopNav route={route} />
       {status === 'loading' || status === 'idle' ? (
         <Centered>Loading agenda…</Centered>
       ) : status === 'error' && error ? (
         <Centered>
           <h1>{error.kind === 'unprovisioned' ? 'List missing' : 'Could not load'}</h1>
-          <p className="error">{error.message}</p>
-          <button onClick={retry}>Retry</button>
+          <p className="form-error">{error.message}</p>
+          <button onClick={retry} className="btn">
+            Retry
+          </button>
         </Centered>
       ) : route.view === 'item' ? (
         <ItemDetail itemId={route.itemId} />
@@ -142,11 +179,12 @@ export function AppShell() {
       ) : (
         <AgendaView />
       )}
-    </>
+      <MobileTabs route={route} />
+    </div>
   );
 }
 
-function TopBar({
+function UtilityStrip({
   account,
   onSignOut,
 }: {
@@ -154,17 +192,49 @@ function TopBar({
   onSignOut: () => void;
 }) {
   return (
-    <div className="topbar">
-      <nav className="topbar-nav">
-        <a href="#">Agenda</a>
-        <a href={meetingsHref}>Meetings</a>
-        <a href={actionsHref}>Actions</a>
-      </nav>
-      <span>{account ?? 'Signed in'}</span>
+    <div className="utility-strip">
+      <span className="account" title={account ?? ''}>{account ?? 'Signed in'}</span>
       <button onClick={onSignOut} className="link">
         Sign out
       </button>
     </div>
+  );
+}
+
+function DesktopNav({ route }: { route: Route }) {
+  return (
+    <nav className="nav-desktop">
+      <a href={AGENDA_HREF} className="brand">
+        <span className="brand-mark">LS</span>
+        Trustees
+      </a>
+      {NAV.map((item) => (
+        <a
+          key={item.href}
+          href={item.href}
+          className={item.matches(route) ? 'active' : ''}
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function MobileTabs({ route }: { route: Route }) {
+  return (
+    <nav className="nav-tabs">
+      {NAV.map((item) => (
+        <a
+          key={item.href}
+          href={item.href}
+          className={item.matches(route) ? 'active' : ''}
+        >
+          <span className="tab-glyph">{item.glyph}</span>
+          <span>{item.label}</span>
+        </a>
+      ))}
+    </nav>
   );
 }
 
