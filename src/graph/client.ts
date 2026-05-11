@@ -50,13 +50,22 @@ export function createGraphClient(instance: PublicClientApplication): GraphClien
     if (!response.ok) {
       let graphCode: string | undefined;
       let message = `Graph request failed: ${response.status} ${response.statusText}`;
+      let rawBody: unknown;
       try {
-        const body = (await response.json()) as { error?: { code?: string; message?: string } };
+        rawBody = await response.json();
+        const body = rawBody as { error?: { code?: string; message?: string } };
         graphCode = body.error?.code;
         if (body.error?.message) message = body.error.message;
       } catch {
         /* ignore parse failure */
       }
+      console.error('Graph request failed', {
+        method: init?.method ?? 'GET',
+        url,
+        status: response.status,
+        body: rawBody,
+        sentBody: init?.body,
+      });
       throw new GraphError(message, response.status, graphCode);
     }
     if (response.status === 204) return undefined as T;
