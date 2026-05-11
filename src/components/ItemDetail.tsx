@@ -12,6 +12,7 @@ import type {
   Meeting,
   MeetingEntry,
 } from '../types';
+import { ActionCard } from './ActionsDashboard';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
@@ -391,17 +392,7 @@ function Actions({ actions }: { actions: ActionItem[] }) {
       </h2>
       <ul className="actions">
         {actions.map((a) => (
-          <li key={a.id} className={`action-row action-${a.status.toLowerCase()}`}>
-            <div className="action-head">
-              <span className="badge">{a.status}</span>
-              <span className="action-assignee">{a.assignee}</span>
-              {a.dueHint && <span className="action-due">Due: {a.dueHint}</span>}
-            </div>
-            <div className="action-desc">{a.description}</div>
-            {a.completedNote && (
-              <div className="action-note">{a.completedNote}</div>
-            )}
-          </li>
+          <ActionCard key={a.id} action={a} />
         ))}
       </ul>
     </section>

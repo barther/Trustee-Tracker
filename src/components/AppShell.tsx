@@ -4,7 +4,8 @@ import { initializeMsal, loginRequest } from '../auth/msal';
 import { loadEnv, type AppEnv } from '../env';
 import { useHashRoute } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import { meetingsHref } from '../routing/hashRoute';
+import { actionsHref, meetingsHref } from '../routing/hashRoute';
+import { ActionsDashboard } from './ActionsDashboard';
 import { AgendaView } from './AgendaView';
 import { ItemDetail } from './ItemDetail';
 import { ItemForm } from './ItemForm';
@@ -136,6 +137,8 @@ export function AppShell() {
         <MeetingsList />
       ) : route.view === 'meeting' ? (
         <MeetingDetail meetingId={route.meetingId} />
+      ) : route.view === 'actions' ? (
+        <ActionsDashboard />
       ) : (
         <AgendaView />
       )}
@@ -155,6 +158,7 @@ function TopBar({
       <nav className="topbar-nav">
         <a href="#">Agenda</a>
         <a href={meetingsHref}>Meetings</a>
+        <a href={actionsHref}>Actions</a>
       </nav>
       <span>{account ?? 'Signed in'}</span>
       <button onClick={onSignOut} className="link">

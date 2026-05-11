@@ -197,6 +197,40 @@ body {
   padding-top: 0.5rem;
 }
 
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid #c4c4cc;
+  background: #fff;
+  color: #444;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: #f5f5fb;
+}
+
+.chip-active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+.action-context {
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+
 .topbar .link {
   background: none;
   border: none;
