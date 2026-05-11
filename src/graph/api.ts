@@ -89,6 +89,17 @@ function listItemPath(siteId: string, listName: string, itemId?: string): string
   return itemId ? `${base}/${encodeURIComponent(itemId)}` : base;
 }
 
+function annotateArrayFields(fields: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (Array.isArray(v)) {
+      out[`${k}@odata.type`] = 'Collection(Edm.String)';
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
 export async function createListItem(
   client: GraphClient,
   siteId: string,
@@ -99,7 +110,7 @@ export async function createListItem(
     `${listItemPath(siteId, listName)}?$expand=fields`,
     {
       method: 'POST',
-      body: JSON.stringify({ fields }),
+      body: JSON.stringify({ fields: annotateArrayFields(fields) }),
     },
   );
   return { id: created.id };
@@ -116,7 +127,7 @@ export async function patchListItemFields(
     `${listItemPath(siteId, listName, itemId)}/fields`,
     {
       method: 'PATCH',
-      body: JSON.stringify(fields),
+      body: JSON.stringify(annotateArrayFields(fields)),
     },
   );
 }
