@@ -687,6 +687,80 @@ h1, h2, h3 { margin: 0; }
 .prose ul, .prose ol { margin: 4px 0 4px 20px; padding: 0; }
 .prose li { margin: 2px 0; }
 
+/* ─── Help view ──────────────────────────────────────────────── */
+.help-prose {
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.help-prose h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+}
+.help-prose h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 32px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--hairline);
+}
+.help-prose h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 22px 0 6px;
+}
+.help-prose p { margin: 0 0 12px; }
+.help-prose strong { color: var(--ink); }
+.help-prose code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.help-prose ul, .help-prose ol {
+  margin: 0 0 14px 22px;
+  padding: 0;
+}
+.help-prose li { margin: 4px 0; }
+.help-prose li > p { margin: 0 0 6px; }
+.help-prose hr {
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  margin: 28px 0;
+}
+.help-prose blockquote {
+  border-left: 3px solid var(--sage-soft);
+  margin: 0 0 12px;
+  padding: 4px 12px;
+  color: var(--ink-3);
+}
+.help-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+.help-prose th, .help-prose td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  vertical-align: top;
+}
+.help-prose th {
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.help-prose a {
+  color: var(--sage);
+  text-decoration: underline;
+}
+
 /* ─── Action cards ───────────────────────────────────────────── */
 .action-list {
   list-style: none;
