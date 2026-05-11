@@ -150,6 +150,7 @@ interface StoreState {
   createMeetingEntry: (input: MeetingEntryInput) => Promise<MeetingEntry>;
   updateMeetingEntry: (entryId: string, patch: MeetingEntryPatch) => Promise<void>;
   deleteMeetingEntry: (entryId: string) => Promise<void>;
+  reconcileItem: (itemId: string) => Promise<void>;
   createActionItem: (draft: ActionItemDraft) => Promise<ActionItem>;
   updateActionItem: (actionId: string, patch: ActionItemPatch) => Promise<void>;
   deleteActionItem: (actionId: string) => Promise<void>;
@@ -578,6 +579,13 @@ export const useStore = create<StoreState>((set, get) => ({
     const meetingEntries = await fetchMeetingEntries(client, env.siteId, env.lists.meetingEntries);
     const refreshedItems = await reconcileItemStatus(existing.itemId, meetingEntries, state.items);
     set(refreshedItems ? { meetingEntries, items: refreshedItems } : { meetingEntries });
+  },
+
+  async reconcileItem(itemId) {
+    requireSession();
+    const state = get();
+    const refreshedItems = await reconcileItemStatus(itemId, state.meetingEntries, state.items);
+    if (refreshedItems) set({ items: refreshedItems });
   },
 
   async createActionItem(draft) {

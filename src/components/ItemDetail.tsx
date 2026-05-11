@@ -42,6 +42,7 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
   const allEntries = useStore((s) => s.meetingEntries);
   const allDecisions = useStore((s) => s.decisions);
   const allActions = useStore((s) => s.actionItems);
+  const reconcileItem = useStore((s) => s.reconcileItem);
 
   const entries = useMemo(
     () =>
@@ -112,12 +113,11 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
       <Header item={item} agendaSection={agendaSection} />
 
       {drift && (
-        <div className="drift-banner">
-          Status drift: most recent meeting entry on{' '}
-          <strong>{shortDate(drift.on)}</strong> set status to{' '}
-          <strong>{drift.expected}</strong>, but the item is{' '}
-          <strong>{item.status}</strong>. Edit the item to reconcile.
-        </div>
+        <DriftBanner
+          item={item}
+          drift={drift}
+          onReconcile={() => reconcileItem(item.id)}
+        />
       )}
 
       <Facts item={item} />
@@ -138,6 +138,53 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
         </>
       )}
     </main>
+  );
+}
+
+function DriftBanner({
+  item,
+  drift,
+  onReconcile,
+}: {
+  item: Item;
+  drift: { expected: ItemStatus; on: string };
+  onReconcile: () => Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const apply = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onReconcile();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <div className="drift-banner">
+      <div>
+        Status drift: most recent meeting entry on{' '}
+        <strong>{shortDate(drift.on)}</strong> set status to{' '}
+        <strong>{drift.expected}</strong>, but the item is{' '}
+        <strong>{item.status}</strong>.
+      </div>
+      {error && (
+        <div style={{ marginTop: 6, color: 'var(--rose)' }}>{error}</div>
+      )}
+      <div className="form-actions" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={apply}
+          disabled={submitting}
+        >
+          {submitting ? 'Reconciling…' : `Set status to ${drift.expected}`}
+        </button>
+      </div>
+    </div>
   );
 }
 
