@@ -7,7 +7,8 @@ export type Route =
   | { view: 'editItem'; itemId: string }
   | { view: 'meetings' }
   | { view: 'meeting'; meetingId: string }
-  | { view: 'actions' };
+  | { view: 'actions' }
+  | { view: 'items' };
 
 function safeDecode(s: string): string | null {
   try {
@@ -27,6 +28,9 @@ function parse(hash: string): Route {
   }
   if (trimmed === 'actions') {
     return { view: 'actions' };
+  }
+  if (trimmed === 'items') {
+    return { view: 'items' };
   }
   const editMatch = trimmed.match(/^item\/([^/]+)\/edit$/);
   if (editMatch) {
@@ -69,6 +73,8 @@ export const newItemHref = '#/item/new';
 export const meetingsHref = '#/meetings';
 
 export const actionsHref = '#/actions';
+
+export const itemsHref = '#/items';
 
 export function meetingHref(meetingId: string): string {
   return `#/meeting/${encodeURIComponent(meetingId)}`;
