@@ -12,7 +12,6 @@ import {
   avatarBg,
   eyebrowDate,
   initials,
-  longDate,
   parseAssignees,
   shortDate,
   tagDisplay,
@@ -20,7 +19,7 @@ import {
 } from '../design/tokens';
 import { itemHref, newItemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import type { ActionItem, AgendaSection, Tag } from '../types';
+import type { ActionItem, AgendaSection, MeetingEntry, Tag } from '../types';
 
 type FilterKey = 'all' | AgendaSection;
 
@@ -71,6 +70,18 @@ export function AgendaView() {
     }
     return m;
   }, [actionItems]);
+
+  const latestEntryByItem = useMemo(() => {
+    const m = new Map<string, MeetingEntry>();
+    for (const e of meetingEntries) {
+      if (e.meetingDate >= targetDate) continue;
+      const prev = m.get(e.itemId);
+      if (!prev || e.meetingDate > prev.meetingDate || (e.meetingDate === prev.meetingDate && e.sortOrder > prev.sortOrder)) {
+        m.set(e.itemId, e);
+      }
+    }
+    return m;
+  }, [meetingEntries, targetDate]);
 
   const counts = useMemo(
     () => ({
@@ -135,6 +146,7 @@ export function AgendaView() {
           section={section}
           entries={entriesFor(agenda, section)}
           openActionsByItem={openActionsByItem}
+          latestEntryByItem={latestEntryByItem}
         />
       ))}
     </main>
@@ -149,35 +161,22 @@ function DatePickerRow({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="chip-row" style={{ marginBottom: 8 }}>
-      <label
+    <div style={{ marginBottom: 12 }}>
+      <input
+        type="date"
+        value={targetDate}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Meeting date"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
+          font: 'inherit',
           fontSize: 12.5,
-          color: 'var(--ink-3)',
+          padding: '5px 10px',
+          border: '1px solid var(--hairline-2)',
+          borderRadius: 'var(--radius-pill)',
+          background: 'var(--surface)',
+          color: 'var(--ink-2)',
         }}
-      >
-        Meeting date
-        <input
-          type="date"
-          value={targetDate}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            font: 'inherit',
-            fontSize: 13,
-            padding: '6px 10px',
-            border: '1px solid var(--hairline-2)',
-            borderRadius: 'var(--radius-pill)',
-            background: 'var(--surface)',
-            color: 'var(--ink)',
-          }}
-        />
-        <span className="meta" title={longDate(targetDate)}>
-          {longDate(targetDate)}
-        </span>
-      </label>
+      />
     </div>
   );
 }
@@ -217,10 +216,12 @@ function Section({
   section,
   entries,
   openActionsByItem,
+  latestEntryByItem,
 }: {
   section: AgendaSection;
   entries: AgendaEntry[];
   openActionsByItem: Map<string, ActionItem[]>;
+  latestEntryByItem: Map<string, MeetingEntry>;
 }) {
   return (
     <section className="section">
@@ -247,6 +248,7 @@ function Section({
               key={entry.item.id}
               entry={entry}
               openActions={openActionsByItem.get(entry.item.id) ?? []}
+              latestEntry={latestEntryByItem.get(entry.item.id)}
             />
           ))
         )}
@@ -258,14 +260,19 @@ function Section({
 function AgendaRow({
   entry,
   openActions,
+  latestEntry,
 }: {
   entry: AgendaEntry;
   openActions: ActionItem[];
+  latestEntry?: MeetingEntry;
 }) {
   const { item, lastDiscussedDate } = entry;
   const assignees = parseAssignees(item.assignedTo).slice(0, 2);
   const tags: Tag[] = item.tags.slice(0, 3);
   const tagOverflow = item.tags.length - tags.length;
+  const preview = latestEntry?.narrative
+    ? snippet(latestEntry.narrative)
+    : undefined;
 
   return (
     <a
@@ -290,7 +297,7 @@ function AgendaRow({
         <div className="row-title-line">
           <span className="row-title">{item.title}</span>
         </div>
-        {item.notes && <div className="row-note">{firstLine(item.notes)}</div>}
+        {preview && <div className="row-note">{preview}</div>}
         {item.onHoldReason && (
           <div className="row-onhold">On hold — {item.onHoldReason}</div>
         )}
@@ -326,8 +333,18 @@ function AgendaRow({
   );
 }
 
-function firstLine(s: string): string {
-  const trimmed = s.trim();
-  const nl = trimmed.indexOf('\n');
-  return nl > 0 ? trimmed.slice(0, nl) : trimmed;
+// First sentence (or first paragraph) of markdown narrative, with
+// markdown formatting stripped for compact row display.
+function snippet(markdown: string): string {
+  const firstPara = markdown.split(/\n\s*\n/)[0] ?? '';
+  const stripped = firstPara
+    .replace(/[*_`#>~-]{1,3}/g, '')
+    .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const periodIdx = stripped.search(/[.!?](\s|$)/);
+  if (periodIdx > 20 && periodIdx < 140) {
+    return stripped.slice(0, periodIdx + 1);
+  }
+  return stripped.length > 140 ? stripped.slice(0, 137).trimEnd() + '…' : stripped;
 }
