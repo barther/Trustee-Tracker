@@ -318,13 +318,24 @@ function AgendaRow({
 function snippet(markdown: string): string {
   const firstPara = markdown.split(/\n\s*\n/)[0] ?? '';
   const stripped = firstPara
-    .replace(/[*_`#>~-]{1,3}/g, '')
+    // Strip leading list / blockquote / heading markers at line starts
+    .replace(/^[\s>*#-]+/gm, '')
+    // Strip emphasis/code/strikethrough markers (not hyphens, which
+    // appear in plain prose like "5-8 PM" or "6-7 panels")
+    .replace(/[*_`~]{1,3}/g, '')
+    // Render [text](url) as just text
     .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
-  const periodIdx = stripped.search(/[.!?](\s|$)/);
-  if (periodIdx > 20 && periodIdx < 140) {
-    return stripped.slice(0, periodIdx + 1);
+  // Pick a sentence break only if it's late enough to be informative
+  // and we're truncating anyway. Parenthetical periods inside the
+  // first ~60 chars are usually noise like "(~$1,500/month)."
+  if (stripped.length > 140) {
+    const periodIdx = stripped.slice(40).search(/[.!?](\s|$)/);
+    if (periodIdx >= 0 && periodIdx + 40 < 200) {
+      return stripped.slice(0, periodIdx + 40 + 1);
+    }
+    return stripped.slice(0, 137).trimEnd() + '…';
   }
-  return stripped.length > 140 ? stripped.slice(0, 137).trimEnd() + '…' : stripped;
+  return stripped;
 }
