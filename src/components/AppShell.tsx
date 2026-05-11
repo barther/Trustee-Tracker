@@ -4,9 +4,15 @@ import { initializeMsal, loginRequest } from '../auth/msal';
 import { loadEnv, type AppEnv } from '../env';
 import { useHashRoute, type Route } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import { actionsHref, itemsHref, meetingsHref } from '../routing/hashRoute';
+import {
+  actionsHref,
+  decisionsHref,
+  itemsHref,
+  meetingsHref,
+} from '../routing/hashRoute';
 import { ActionsDashboard } from './ActionsDashboard';
 import { AgendaView } from './AgendaView';
+import { DecisionLog } from './DecisionLog';
 import { ItemDetail } from './ItemDetail';
 import { ItemForm } from './ItemForm';
 import { ItemsList } from './ItemsList';
@@ -49,6 +55,12 @@ const NAV: NavItem[] = [
     glyph: '⊞',
     matches: (r) =>
       r.view === 'items' || r.view === 'item' || r.view === 'newItem' || r.view === 'editItem',
+  },
+  {
+    href: decisionsHref,
+    label: 'Decisions',
+    glyph: '§',
+    matches: (r) => r.view === 'decisions',
   },
 ];
 
@@ -186,6 +198,8 @@ export function AppShell() {
         <ActionsDashboard />
       ) : route.view === 'items' ? (
         <ItemsList />
+      ) : route.view === 'decisions' ? (
+        <DecisionLog />
       ) : (
         <AgendaView />
       )}
