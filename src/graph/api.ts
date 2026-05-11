@@ -124,10 +124,10 @@ export async function patchListItemFields(
   fields: Record<string, unknown>,
 ): Promise<void> {
   await client.fetchJson<unknown>(
-    listItemPath(siteId, listName, itemId),
+    `${listItemPath(siteId, listName, itemId)}/fields`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ fields: annotateArrayFields(fields) }),
+      body: JSON.stringify(annotateArrayFields(fields)),
     },
   );
 }
