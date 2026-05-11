@@ -16,9 +16,9 @@ export default defineConfig({
         'prototypes/*.jsx',
       ],
       manifest: {
-        name: 'Trustees Agenda',
-        short_name: 'Trustees',
-        description: 'Lithia Springs Methodist Trustees agenda tracker',
+        name: 'Trustee Tracker',
+        short_name: 'Trustee Tracker',
+        description: 'Lithia Springs Methodist Trustee Tracker',
         theme_color: '#4a6b54',
         background_color: '#faf8f5',
         display: 'standalone',

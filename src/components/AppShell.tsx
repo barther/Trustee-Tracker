@@ -158,7 +158,7 @@ export function AppShell() {
   if (phase === 'signed-out' || phase === 'authenticating') {
     return (
       <Centered>
-        <h1>Trustees Agenda</h1>
+        <h1>Trustee Tracker</h1>
         <p>Sign in with your church Microsoft 365 account to continue.</p>
         {msalError && <p className="form-error">{msalError}</p>}
         <button
@@ -237,7 +237,7 @@ function DesktopNav({ route }: { route: Route }) {
     <nav className="nav-desktop">
       <a href={AGENDA_HREF} className="brand">
         <span className="brand-mark">LS</span>
-        Trustees
+        Trustee Tracker
       </a>
       {NAV.map((item) => (
         <a
