@@ -100,7 +100,7 @@ export function AgendaView() {
 
       <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
 
-      <div className="stat-strip hide-scrollbar">
+      <div className="stat-strip">
         {SECTIONS.map((section) => (
           <StatChip
             key={section}
