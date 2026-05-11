@@ -4,7 +4,9 @@ export type Route =
   | { view: 'agenda' }
   | { view: 'item'; itemId: string }
   | { view: 'newItem' }
-  | { view: 'editItem'; itemId: string };
+  | { view: 'editItem'; itemId: string }
+  | { view: 'meetings' }
+  | { view: 'meeting'; meetingId: string };
 
 function safeDecode(s: string): string | null {
   try {
@@ -19,6 +21,9 @@ function parse(hash: string): Route {
   if (trimmed === 'item/new') {
     return { view: 'newItem' };
   }
+  if (trimmed === 'meetings') {
+    return { view: 'meetings' };
+  }
   const editMatch = trimmed.match(/^item\/([^/]+)\/edit$/);
   if (editMatch) {
     const itemId = safeDecode(editMatch[1]);
@@ -28,6 +33,11 @@ function parse(hash: string): Route {
   if (detailMatch) {
     const itemId = safeDecode(detailMatch[1]);
     if (itemId) return { view: 'item', itemId };
+  }
+  const meetingMatch = trimmed.match(/^meeting\/([^/]+)$/);
+  if (meetingMatch) {
+    const meetingId = safeDecode(meetingMatch[1]);
+    if (meetingId) return { view: 'meeting', meetingId };
   }
   return { view: 'agenda' };
 }
@@ -51,6 +61,12 @@ export function itemEditHref(itemId: string): string {
 }
 
 export const newItemHref = '#/item/new';
+
+export const meetingsHref = '#/meetings';
+
+export function meetingHref(meetingId: string): string {
+  return `#/meeting/${encodeURIComponent(meetingId)}`;
+}
 
 export function navigateToAgenda(): void {
   if (window.location.hash !== '') {
