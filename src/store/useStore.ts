@@ -10,6 +10,7 @@ import {
   fetchMeetingEntries,
   fetchMeetings,
   patchListItemFields,
+  resolveListIds,
 } from '../graph/api';
 import type { AppEnv } from '../env';
 import type {
@@ -180,14 +181,33 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ status: 'loading', error: undefined });
     const client = createGraphClient(instance);
     try {
-      const [items, meetings, meetingEntries, actionItems, decisions] = await Promise.all([
-        fetchItems(client, env.siteId, env.lists.items),
-        fetchMeetings(client, env.siteId, env.lists.meetings),
-        fetchMeetingEntries(client, env.siteId, env.lists.meetingEntries),
-        fetchActionItems(client, env.siteId, env.lists.actionItems),
-        fetchDecisions(client, env.siteId, env.lists.decisions),
+      const idMap = await resolveListIds(client, env.siteId, [
+        env.lists.items,
+        env.lists.meetings,
+        env.lists.meetingEntries,
+        env.lists.actionItems,
+        env.lists.decisions,
+        env.lists.vendors,
       ]);
-      session = { client, env };
+      const resolved: AppEnv = {
+        ...env,
+        lists: {
+          items: idMap[env.lists.items],
+          meetings: idMap[env.lists.meetings],
+          meetingEntries: idMap[env.lists.meetingEntries],
+          actionItems: idMap[env.lists.actionItems],
+          decisions: idMap[env.lists.decisions],
+          vendors: idMap[env.lists.vendors],
+        },
+      };
+      const [items, meetings, meetingEntries, actionItems, decisions] = await Promise.all([
+        fetchItems(client, resolved.siteId, resolved.lists.items),
+        fetchMeetings(client, resolved.siteId, resolved.lists.meetings),
+        fetchMeetingEntries(client, resolved.siteId, resolved.lists.meetingEntries),
+        fetchActionItems(client, resolved.siteId, resolved.lists.actionItems),
+        fetchDecisions(client, resolved.siteId, resolved.lists.decisions),
+      ]);
+      session = { client, env: resolved };
 
       set({
         status: 'ready',

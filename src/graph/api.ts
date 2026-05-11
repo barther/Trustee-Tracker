@@ -27,6 +27,42 @@ export class ListMissingError extends Error {
   }
 }
 
+interface SharePointListSummary {
+  id: string;
+  displayName?: string;
+  name?: string;
+}
+
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function resolveListIds(
+  client: GraphClient,
+  siteId: string,
+  names: readonly string[],
+): Promise<Record<string, string>> {
+  const passthrough: Record<string, string> = {};
+  const toResolve = new Set<string>();
+  for (const n of names) {
+    if (GUID_RE.test(n)) passthrough[n] = n;
+    else toResolve.add(n);
+  }
+  if (toResolve.size === 0) return passthrough;
+
+  const path = `/sites/${encodeURIComponent(
+    siteId,
+  )}/lists?$select=id,displayName,name`;
+  const lists = await client.fetchAll<SharePointListSummary>(path);
+  const out: Record<string, string> = { ...passthrough };
+  for (const want of toResolve) {
+    const match = lists.find(
+      (l) => l.displayName === want || l.name === want,
+    );
+    if (!match) throw new ListMissingError(want);
+    out[want] = match.id;
+  }
+  return out;
+}
+
 async function readList<T>(
   client: GraphClient,
   siteId: string,
