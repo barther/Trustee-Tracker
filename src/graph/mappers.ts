@@ -1,6 +1,8 @@
 import type {
   ActionItem,
   ActionStatus,
+  Decision,
+  DecisionType,
   DefaultSection,
   EntrySection,
   Item,
@@ -28,6 +30,12 @@ const ENTRY_SECTIONS: readonly EntrySection[] = [
   'OtherBusiness',
 ];
 const ACTION_STATUSES: readonly ActionStatus[] = ['Open', 'Done', 'Dropped'];
+const DECISION_TYPES: readonly DecisionType[] = [
+  'Approval',
+  'Denial',
+  'Authorization',
+  'Procedural',
+];
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback;
@@ -149,6 +157,45 @@ interface ActionItemFields {
   Status?: string;
   CompletedAtMeetingIdLookupId?: number | string;
   CompletedNote?: string;
+}
+
+interface DecisionFields {
+  Title?: string;
+  Summary?: string;
+  MeetingEntryIdLookupId?: number | string;
+  MeetingIdLookupId?: number | string;
+  ItemIdLookupId?: number | string;
+  DecisionDate?: string;
+  DecisionType?: string;
+  MotionBy?: string;
+  SecondBy?: string;
+  Vote?: string;
+  Amount?: number | string;
+  Vendor?: string;
+}
+
+export function mapDecision(row: GraphListItem<DecisionFields>): Decision {
+  const f = row.fields ?? {};
+  const amount = typeof f.Amount === 'number'
+    ? f.Amount
+    : typeof f.Amount === 'string' && f.Amount.length > 0
+      ? Number(f.Amount)
+      : undefined;
+  return {
+    id: row.id,
+    title: asString(f.Title) ?? '(untitled)',
+    summary: asString(f.Summary) ?? '',
+    meetingEntryId: asLookupId(f.MeetingEntryIdLookupId) ?? '',
+    meetingId: asLookupId(f.MeetingIdLookupId) ?? '',
+    itemId: asLookupId(f.ItemIdLookupId) ?? '',
+    decisionDate: asDate(f.DecisionDate) ?? '',
+    decisionType: oneOf(f.DecisionType, DECISION_TYPES, 'Approval'),
+    motionBy: asString(f.MotionBy),
+    secondBy: asString(f.SecondBy),
+    vote: asString(f.Vote),
+    amount: amount !== undefined && Number.isFinite(amount) ? amount : undefined,
+    vendor: asString(f.Vendor),
+  };
 }
 
 export function mapActionItem(row: GraphListItem<ActionItemFields>): ActionItem {

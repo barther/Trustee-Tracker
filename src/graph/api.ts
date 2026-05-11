@@ -1,7 +1,13 @@
-import type { ActionItem, Item, MeetingEntry } from '../types';
+import type { ActionItem, Decision, Item, MeetingEntry } from '../types';
 import type { GraphClient } from './client';
 import { GraphError } from './client';
-import { mapActionItem, mapItem, mapMeetingEntry, type GraphListItem } from './mappers';
+import {
+  mapActionItem,
+  mapDecision,
+  mapItem,
+  mapMeetingEntry,
+  type GraphListItem,
+} from './mappers';
 
 const PAGE_SIZE = 200;
 
@@ -59,4 +65,12 @@ export function fetchActionItems(
   listName: string,
 ): Promise<ActionItem[]> {
   return readList(client, siteId, listName, (row) => mapActionItem(row));
+}
+
+export function fetchDecisions(
+  client: GraphClient,
+  siteId: string,
+  listName: string,
+): Promise<Decision[]> {
+  return readList(client, siteId, listName, (row) => mapDecision(row));
 }
