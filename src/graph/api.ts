@@ -94,7 +94,7 @@ export async function createListItem(
   siteId: string,
   listName: string,
   fields: Record<string, unknown>,
-): Promise<string> {
+): Promise<{ id: string }> {
   const created = await client.fetchJson<{ id: string }>(
     `${listItemPath(siteId, listName)}?$expand=fields`,
     {
@@ -102,7 +102,7 @@ export async function createListItem(
       body: JSON.stringify({ fields }),
     },
   );
-  return created.id;
+  return { id: created.id };
 }
 
 export async function patchListItemFields(

@@ -157,14 +157,14 @@ export const useStore = create<StoreState>((set, get) => ({
   async createMeeting({ meetingDate, meetingType = 'Regular', titleSuffix }) {
     const { client, env } = requireSession();
     const title = meetingTitle(meetingDate, meetingType, titleSuffix);
-    await createListItem(client, env.siteId, env.lists.meetings, {
+    const { id } = await createListItem(client, env.siteId, env.lists.meetings, {
       Title: title,
       MeetingDate: meetingDate,
       MeetingType: meetingType,
     });
     const meetings = await fetchMeetings(client, env.siteId, env.lists.meetings);
     set({ meetings });
-    const created = meetings.find((m) => m.title === title);
+    const created = meetings.find((m) => m.id === id);
     if (!created) {
       throw new Error('Meeting was created but could not be located after refetch.');
     }

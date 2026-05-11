@@ -28,6 +28,11 @@ interface PriorEntryStats {
   count: number;
 }
 
+function isMoreRecent(a: MeetingEntry, b: MeetingEntry): boolean {
+  if (a.meetingDate !== b.meetingDate) return a.meetingDate > b.meetingDate;
+  return a.sortOrder > b.sortOrder;
+}
+
 function indexEntriesByItem(
   entries: MeetingEntry[],
   targetDate: string,
@@ -37,10 +42,7 @@ function indexEntriesByItem(
     if (entry.meetingDate >= targetDate) continue;
     const stats = byItem.get(entry.itemId) ?? { count: 0 };
     stats.count += 1;
-    if (
-      !stats.mostRecentBefore ||
-      entry.meetingDate > stats.mostRecentBefore.meetingDate
-    ) {
+    if (!stats.mostRecentBefore || isMoreRecent(entry, stats.mostRecentBefore)) {
       stats.mostRecentBefore = entry;
     }
     byItem.set(entry.itemId, stats);
