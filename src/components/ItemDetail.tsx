@@ -5,7 +5,6 @@ import {
   ENTRY_SECTION_LABEL,
   SECTION_LABEL,
   STATUS_PILL,
-  formatMoney,
   longDate,
   shortDate,
   tagDisplay,
@@ -21,7 +20,8 @@ import type {
   Meeting,
   MeetingEntry,
 } from '../types';
-import { ActionCard } from './ActionsDashboard';
+import { ActionCard, DecisionCard } from './ActionsDashboard';
+import { EntryEditForm } from './MeetingDetail';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
@@ -367,41 +367,57 @@ function History({ entries }: { entries: MeetingEntry[] }) {
       ) : (
         <ol className="timeline">
           {entries.map((entry, i) => (
-            <li
-              key={entry.id}
-              className={`timeline-row ${i === 0 ? 'current' : ''}`}
-            >
-              <div className="timeline-head">
-                <span className="timeline-date">
-                  {shortDate(entry.meetingDate)}
-                </span>
-                <span className="timeline-section">
-                  {ENTRY_SECTION_LABEL[entry.section]}
-                </span>
-                {entry.statusChangeTo && (
-                  <span
-                    className="status-pill"
-                    style={{
-                      background: STATUS_PILL[entry.statusChangeTo].bg,
-                      color: STATUS_PILL[entry.statusChangeTo].fg,
-                    }}
-                  >
-                    → {entry.statusChangeTo}
-                  </span>
-                )}
-              </div>
-              {entry.narrative ? (
-                <div className="prose">
-                  <ReactMarkdown>{entry.narrative}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="empty">No narrative recorded.</p>
-              )}
-            </li>
+            <HistoryRow key={entry.id} entry={entry} isFirst={i === 0} />
           ))}
         </ol>
       )}
     </>
+  );
+}
+
+function HistoryRow({ entry, isFirst }: { entry: MeetingEntry; isFirst: boolean }) {
+  const [editing, setEditing] = useState(false);
+  if (editing) {
+    return (
+      <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
+        <EntryEditForm entry={entry} onClose={() => setEditing(false)} />
+      </li>
+    );
+  }
+  return (
+    <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
+      <div className="timeline-head">
+        <span className="timeline-date">{shortDate(entry.meetingDate)}</span>
+        <span className="timeline-section">{ENTRY_SECTION_LABEL[entry.section]}</span>
+        {entry.statusChangeTo && (
+          <span
+            className="status-pill"
+            style={{
+              background: STATUS_PILL[entry.statusChangeTo].bg,
+              color: STATUS_PILL[entry.statusChangeTo].fg,
+            }}
+          >
+            → {entry.statusChangeTo}
+          </span>
+        )}
+      </div>
+      {entry.narrative ? (
+        <div className="prose">
+          <ReactMarkdown>{entry.narrative}</ReactMarkdown>
+        </div>
+      ) : (
+        <p className="empty">No narrative recorded.</p>
+      )}
+      <div className="form-actions" style={{ marginTop: 6 }}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => setEditing(true)}
+        >
+          Edit entry
+        </button>
+      </div>
+    </li>
   );
 }
 
@@ -414,40 +430,7 @@ function Decisions({ decisions }: { decisions: Decision[] }) {
       </div>
       <ul className="action-list">
         {decisions.map((d) => (
-          <li key={d.id} className="decision-card">
-            <div className="decision-head">
-              <span className="timeline-date">{shortDate(d.decisionDate)}</span>
-              <span className="badge">{d.decisionType}</span>
-            </div>
-            <div className="decision-summary">{d.summary}</div>
-            <div className="decision-meta">
-              {d.motionBy && (
-                <span>
-                  <strong>Motion</strong> {d.motionBy}
-                </span>
-              )}
-              {d.secondBy && (
-                <span>
-                  <strong>Second</strong> {d.secondBy}
-                </span>
-              )}
-              {d.vote && (
-                <span>
-                  <strong>Vote</strong> {d.vote}
-                </span>
-              )}
-              {typeof d.amount === 'number' && (
-                <span>
-                  <strong>Amount</strong> {formatMoney(d.amount)}
-                </span>
-              )}
-              {d.vendor && (
-                <span>
-                  <strong>Vendor</strong> {d.vendor}
-                </span>
-              )}
-            </div>
-          </li>
+          <DecisionCard key={d.id} decision={d} />
         ))}
       </ul>
     </>

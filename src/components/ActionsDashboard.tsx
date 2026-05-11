@@ -1,8 +1,21 @@
 import { useMemo, useState } from 'react';
-import { avatarBg, initials, shortDate } from '../design/tokens';
+import {
+  avatarBg,
+  formatMoney,
+  initials,
+  shortDate,
+} from '../design/tokens';
 import { itemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import type { ActionItem, ActionStatus, Meeting } from '../types';
+import type {
+  ActionItem,
+  ActionStatus,
+  Decision,
+  DecisionType,
+  Meeting,
+} from '../types';
+
+const DECISION_TYPES: DecisionType[] = ['Approval', 'Denial', 'Authorization', 'Procedural'];
 
 const STATUS_FILTERS: Array<{ key: ActionStatus | 'All'; label: string }> = [
   { key: 'Open', label: 'Open' },
@@ -121,6 +134,8 @@ export function ActionCard({
   const completeActionItem = useStore((s) => s.completeActionItem);
   const dropActionItem = useStore((s) => s.dropActionItem);
   const reopenActionItem = useStore((s) => s.reopenActionItem);
+  const updateActionItem = useStore((s) => s.updateActionItem);
+  const deleteActionItem = useStore((s) => s.deleteActionItem);
   const meetings = useStore((s) => s.meetings);
   const items = useStore((s) => s.items);
 
@@ -130,9 +145,12 @@ export function ActionCard({
     : undefined;
   const itemTitle = items.find((i) => i.id === action.itemId)?.title;
 
-  const [mode, setMode] = useState<'idle' | 'complete' | 'drop'>('idle');
+  const [mode, setMode] = useState<'idle' | 'complete' | 'drop' | 'edit'>('idle');
   const [note, setNote] = useState('');
   const [completedAtMeetingId, setCompletedAtMeetingId] = useState('');
+  const [editDescription, setEditDescription] = useState(action.description);
+  const [editAssignee, setEditAssignee] = useState(action.assignee);
+  const [editDueHint, setEditDueHint] = useState(action.dueHint ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,7 +158,41 @@ export function ActionCard({
     setMode('idle');
     setNote('');
     setCompletedAtMeetingId('');
+    setEditDescription(action.description);
+    setEditAssignee(action.assignee);
+    setEditDueHint(action.dueHint ?? '');
     setError(null);
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updateActionItem(action.id, {
+        description: editDescription,
+        assignee: editAssignee,
+        dueHint: editDueHint,
+      });
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm(`Delete this action item?\n\n"${action.description}"`)) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteActionItem(action.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const submitComplete = async (e: React.FormEvent) => {
@@ -255,7 +307,66 @@ export function ActionCard({
                 Reopen
               </button>
             )}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setMode('edit')}
+              disabled={submitting}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onDelete}
+              disabled={submitting}
+              style={{ color: 'var(--rose)' }}
+            >
+              Delete
+            </button>
           </div>
+        )}
+
+        {mode === 'edit' && (
+          <form className="form" onSubmit={submitEdit} style={{ marginTop: 10 }}>
+            <label className="form-field">
+              <span>Description</span>
+              <textarea
+                rows={2}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <div className="form-row">
+              <label className="form-field">
+                <span>Assignee</span>
+                <input
+                  type="text"
+                  value={editAssignee}
+                  onChange={(e) => setEditAssignee(e.target.value)}
+                />
+              </label>
+              <label className="form-field">
+                <span>Due hint</span>
+                <input
+                  type="text"
+                  value={editDueHint}
+                  onChange={(e) => setEditDueHint(e.target.value)}
+                  placeholder="next meeting"
+                />
+              </label>
+            </div>
+            {error && <p className="form-error">{error}</p>}
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={reset} disabled={submitting}>
+                Cancel
+              </button>
+            </div>
+          </form>
         )}
 
         {mode === 'complete' && (
@@ -317,6 +428,224 @@ export function ActionCard({
             </div>
           </form>
         )}
+      </div>
+    </li>
+  );
+}
+
+export function DecisionCard({ decision }: { decision: Decision }) {
+  const updateDecision = useStore((s) => s.updateDecision);
+  const deleteDecision = useStore((s) => s.deleteDecision);
+
+  const [editing, setEditing] = useState(false);
+  const [summary, setSummary] = useState(decision.summary);
+  const [decisionType, setDecisionType] = useState<DecisionType>(decision.decisionType);
+  const [motionBy, setMotionBy] = useState(decision.motionBy ?? '');
+  const [secondBy, setSecondBy] = useState(decision.secondBy ?? '');
+  const [vote, setVote] = useState(decision.vote ?? '');
+  const [amountStr, setAmountStr] = useState(
+    typeof decision.amount === 'number' ? String(decision.amount) : '',
+  );
+  const [vendor, setVendor] = useState(decision.vendor ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = () => {
+    setEditing(false);
+    setSummary(decision.summary);
+    setDecisionType(decision.decisionType);
+    setMotionBy(decision.motionBy ?? '');
+    setSecondBy(decision.secondBy ?? '');
+    setVote(decision.vote ?? '');
+    setAmountStr(typeof decision.amount === 'number' ? String(decision.amount) : '');
+    setVendor(decision.vendor ?? '');
+    setError(null);
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    let amount: number | null = null;
+    if (amountStr.trim()) {
+      const parsed = Number.parseFloat(amountStr.replace(/[^0-9.]/g, ''));
+      if (Number.isNaN(parsed)) {
+        setError('Amount must be a number.');
+        setSubmitting(false);
+        return;
+      }
+      amount = parsed;
+    }
+    try {
+      await updateDecision(decision.id, {
+        summary,
+        decisionType,
+        motionBy,
+        secondBy,
+        vote,
+        amount,
+        vendor,
+      });
+      setEditing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDelete = async () => {
+    if (!window.confirm(`Delete this decision?\n\n"${decision.summary}"`)) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteDecision(decision.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSubmitting(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <li className="decision-card">
+        <form className="form" onSubmit={submit} style={{ margin: 0, padding: 0, border: 'none' }}>
+          <label className="form-field">
+            <span>Summary</span>
+            <input
+              type="text"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              autoFocus
+            />
+          </label>
+          <div className="form-row">
+            <label className="form-field">
+              <span>Type</span>
+              <select
+                value={decisionType}
+                onChange={(e) => setDecisionType(e.target.value as DecisionType)}
+              >
+                {DECISION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-field">
+              <span>Vote</span>
+              <input
+                type="text"
+                value={vote}
+                onChange={(e) => setVote(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="form-row">
+            <label className="form-field">
+              <span>Motion by</span>
+              <input
+                type="text"
+                value={motionBy}
+                onChange={(e) => setMotionBy(e.target.value)}
+              />
+            </label>
+            <label className="form-field">
+              <span>Second by</span>
+              <input
+                type="text"
+                value={secondBy}
+                onChange={(e) => setSecondBy(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="form-row">
+            <label className="form-field">
+              <span>Amount (USD)</span>
+              <input
+                type="text"
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value)}
+                inputMode="decimal"
+              />
+            </label>
+            <label className="form-field">
+              <span>Vendor</span>
+              <input
+                type="text"
+                value={vendor}
+                onChange={(e) => setVendor(e.target.value)}
+              />
+            </label>
+          </div>
+          {error && <p className="form-error">{error}</p>}
+          <div className="form-actions">
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={cancel} disabled={submitting}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </li>
+    );
+  }
+
+  return (
+    <li className="decision-card">
+      <div className="decision-head">
+        <span className="badge">{decision.decisionType}</span>
+        <span className="meta">{shortDate(decision.decisionDate)}</span>
+      </div>
+      <div className="decision-summary">{decision.summary}</div>
+      <div className="decision-meta">
+        {decision.motionBy && (
+          <span>
+            <strong>Motion</strong> {decision.motionBy}
+          </span>
+        )}
+        {decision.secondBy && (
+          <span>
+            <strong>Second</strong> {decision.secondBy}
+          </span>
+        )}
+        {decision.vote && (
+          <span>
+            <strong>Vote</strong> {decision.vote}
+          </span>
+        )}
+        {typeof decision.amount === 'number' && (
+          <span>
+            <strong>Amount</strong> {formatMoney(decision.amount)}
+          </span>
+        )}
+        {decision.vendor && (
+          <span>
+            <strong>Vendor</strong> {decision.vendor}
+          </span>
+        )}
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <div className="action-row-actions" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={() => setEditing(true)}
+          disabled={submitting}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onDelete}
+          disabled={submitting}
+          style={{ color: 'var(--rose)' }}
+        >
+          Delete
+        </button>
       </div>
     </li>
   );

@@ -25,7 +25,7 @@ import type {
   MeetingEntry,
   MeetingType,
 } from '../types';
-import { ActionCard } from './ActionsDashboard';
+import { ActionCard, DecisionCard } from './ActionsDashboard';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 const SECTION_OPTIONS: EntrySection[] = ['Update', 'OldBusiness', 'NewBusiness', 'OtherBusiness'];
@@ -543,6 +543,16 @@ function EntryRow({
   meeting: Meeting;
   isFirst: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    return (
+      <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
+        <EntryEditForm entry={entry} onClose={() => setEditing(false)} />
+      </li>
+    );
+  }
+
   return (
     <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
       <div className="timeline-head">
@@ -585,49 +595,153 @@ function EntryRow({
       {decisions.length > 0 && (
         <ul className="action-list" style={{ marginTop: 8 }}>
           {decisions.map((d) => (
-            <li key={d.id} className="decision-card">
-              <div className="decision-head">
-                <span className="badge">{d.decisionType}</span>
-              </div>
-              <div className="decision-summary">{d.summary}</div>
-              <div className="decision-meta">
-                {d.motionBy && (
-                  <span>
-                    <strong>Motion</strong> {d.motionBy}
-                  </span>
-                )}
-                {d.secondBy && (
-                  <span>
-                    <strong>Second</strong> {d.secondBy}
-                  </span>
-                )}
-                {d.vote && (
-                  <span>
-                    <strong>Vote</strong> {d.vote}
-                  </span>
-                )}
-                {typeof d.amount === 'number' && (
-                  <span>
-                    <strong>Amount</strong> $
-                    {d.amount.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                )}
-                {d.vendor && (
-                  <span>
-                    <strong>Vendor</strong> {d.vendor}
-                  </span>
-                )}
-              </div>
-            </li>
+            <DecisionCard key={d.id} decision={d} />
           ))}
         </ul>
       )}
 
-      {item && <EntryAddons entry={entry} item={item} meeting={meeting} />}
+      {item && (
+        <EntryAddons
+          entry={entry}
+          item={item}
+          meeting={meeting}
+          onEdit={() => setEditing(true)}
+        />
+      )}
     </li>
+  );
+}
+
+export function EntryEditForm({
+  entry,
+  onClose,
+}: {
+  entry: MeetingEntry;
+  onClose: () => void;
+}) {
+  const updateMeetingEntry = useStore((s) => s.updateMeetingEntry);
+  const deleteMeetingEntry = useStore((s) => s.deleteMeetingEntry);
+
+  const [section, setSection] = useState<EntrySection>(entry.section);
+  const [sortOrderStr, setSortOrderStr] = useState(String(entry.sortOrder));
+  const [narrative, setNarrative] = useState(entry.narrative ?? '');
+  const [statusChangeTo, setStatusChangeTo] = useState<ItemStatus | ''>(
+    entry.statusChangeTo ?? '',
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const sortOrder = Number.parseInt(sortOrderStr, 10);
+    if (Number.isNaN(sortOrder)) {
+      setError('Sort order must be a number.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updateMeetingEntry(entry.id, {
+        section,
+        sortOrder,
+        narrative,
+        statusChangeTo: statusChangeTo === '' ? null : statusChangeTo,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDelete = async () => {
+    if (
+      !window.confirm(
+        `Delete this entry?\n\nThe narrative and any status change will be lost. Linked action items and decisions stay but lose their entry reference.`,
+      )
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteMeetingEntry(entry.id);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form className="form" onSubmit={submit}>
+      <div className="form-row">
+        <label className="form-field">
+          <span>Section</span>
+          <select
+            value={section}
+            onChange={(e) => setSection(e.target.value as EntrySection)}
+          >
+            {SECTION_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {ENTRY_SECTION_LABEL[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="form-field">
+          <span>Sort order</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={sortOrderStr}
+            onChange={(e) => setSortOrderStr(e.target.value)}
+          />
+        </label>
+      </div>
+      <label className="form-field">
+        <span>Status change</span>
+        <select
+          value={statusChangeTo}
+          onChange={(e) => setStatusChangeTo(e.target.value as ItemStatus | '')}
+        >
+          <option value="">No change</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="form-field">
+        <span>Narrative (markdown)</span>
+        <textarea
+          rows={5}
+          value={narrative}
+          onChange={(e) => setNarrative(e.target.value)}
+        />
+      </label>
+      {error && <p className="form-error">{error}</p>}
+      <div className="form-actions">
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
+          {submitting ? 'Saving…' : 'Save entry'}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
+          Cancel
+        </button>
+        <span style={{ flex: 1 }} />
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onDelete}
+          disabled={submitting}
+          style={{ color: 'var(--rose)' }}
+        >
+          Delete entry
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -635,10 +749,12 @@ function EntryAddons({
   entry,
   item,
   meeting,
+  onEdit,
 }: {
   entry: MeetingEntry;
   item: Item;
   meeting: Meeting;
+  onEdit: () => void;
 }) {
   const [mode, setMode] = useState<'idle' | 'action' | 'decision'>('idle');
   return (
@@ -650,6 +766,9 @@ function EntryAddons({
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setMode('decision')}>
             + Decision
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={onEdit}>
+            Edit entry
           </button>
         </div>
       )}
