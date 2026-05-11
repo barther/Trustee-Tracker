@@ -19,7 +19,7 @@ import {
 } from '../design/tokens';
 import { itemHref, newItemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import type { ActionItem, AgendaSection, MeetingEntry, Tag } from '../types';
+import type { ActionItem, AgendaSection, Tag } from '../types';
 
 type FilterKey = 'all' | AgendaSection;
 
@@ -70,18 +70,6 @@ export function AgendaView() {
     }
     return m;
   }, [actionItems]);
-
-  const latestEntryByItem = useMemo(() => {
-    const m = new Map<string, MeetingEntry>();
-    for (const e of meetingEntries) {
-      if (e.meetingDate >= targetDate) continue;
-      const prev = m.get(e.itemId);
-      if (!prev || e.meetingDate > prev.meetingDate || (e.meetingDate === prev.meetingDate && e.sortOrder > prev.sortOrder)) {
-        m.set(e.itemId, e);
-      }
-    }
-    return m;
-  }, [meetingEntries, targetDate]);
 
   const counts = useMemo(
     () => ({
@@ -146,7 +134,6 @@ export function AgendaView() {
           section={section}
           entries={entriesFor(agenda, section)}
           openActionsByItem={openActionsByItem}
-          latestEntryByItem={latestEntryByItem}
         />
       ))}
     </main>
@@ -216,12 +203,10 @@ function Section({
   section,
   entries,
   openActionsByItem,
-  latestEntryByItem,
 }: {
   section: AgendaSection;
   entries: AgendaEntry[];
   openActionsByItem: Map<string, ActionItem[]>;
-  latestEntryByItem: Map<string, MeetingEntry>;
 }) {
   return (
     <section className="section">
@@ -248,7 +233,6 @@ function Section({
               key={entry.item.id}
               entry={entry}
               openActions={openActionsByItem.get(entry.item.id) ?? []}
-              latestEntry={latestEntryByItem.get(entry.item.id)}
             />
           ))
         )}
@@ -260,19 +244,15 @@ function Section({
 function AgendaRow({
   entry,
   openActions,
-  latestEntry,
 }: {
   entry: AgendaEntry;
   openActions: ActionItem[];
-  latestEntry?: MeetingEntry;
 }) {
   const { item, lastDiscussedDate } = entry;
   const assignees = parseAssignees(item.assignedTo).slice(0, 2);
   const tags: Tag[] = item.tags.slice(0, 3);
   const tagOverflow = item.tags.length - tags.length;
-  const preview = latestEntry?.narrative
-    ? snippet(latestEntry.narrative)
-    : undefined;
+  const preview = item.notes ? snippet(item.notes) : undefined;
 
   return (
     <a

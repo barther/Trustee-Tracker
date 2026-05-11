@@ -1,12 +1,33 @@
 {
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/prototypes/*", "/preview.html", "/*.{css,js,jsx,svg,png,ico,jpg,webp,woff,woff2}"]
+    "exclude": [
+      "/assets/*",
+      "/prototypes/*",
+      "/icons/*",
+      "/preview.html",
+      "/manifest.webmanifest",
+      "/sw.js",
+      "/registerSW.js",
+      "/workbox-*.js",
+      "/*.{css,js,jsx,svg,png,ico,jpg,webp,woff,woff2,webmanifest}"
+    ]
   },
   "mimeTypes": {
     ".json": "application/json",
-    ".jsx": "application/javascript"
+    ".jsx": "application/javascript",
+    ".webmanifest": "application/manifest+json"
   },
+  "routes": [
+    {
+      "route": "/sw.js",
+      "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }
+    },
+    {
+      "route": "/manifest.webmanifest",
+      "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }
+    }
+  ],
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin"
