@@ -4,6 +4,7 @@ import { createGraphClient, type GraphClient } from '../graph/client';
 import {
   ListMissingError,
   createListItem,
+  deleteListItem,
   fetchActionItems,
   fetchDecisions,
   fetchItems,
@@ -50,6 +51,29 @@ export interface MeetingEntryInput {
   sortOrder?: number;
   narrative: string;
   statusChangeTo?: ItemStatus;
+}
+
+export interface MeetingEntryPatch {
+  section?: EntrySection;
+  sortOrder?: number;
+  narrative?: string;
+  statusChangeTo?: ItemStatus | null;
+}
+
+export interface ActionItemPatch {
+  description?: string;
+  assignee?: string;
+  dueHint?: string | null;
+}
+
+export interface DecisionPatch {
+  summary?: string;
+  decisionType?: 'Approval' | 'Denial' | 'Authorization' | 'Procedural';
+  motionBy?: string | null;
+  secondBy?: string | null;
+  vote?: string | null;
+  amount?: number | null;
+  vendor?: string | null;
 }
 
 export interface MeetingDraft {
@@ -124,11 +148,17 @@ interface StoreState {
   updateMeeting: (meetingId: string, draft: MeetingDraft) => Promise<void>;
   addInterimUpdate: (input: InterimUpdateInput) => Promise<void>;
   createMeetingEntry: (input: MeetingEntryInput) => Promise<MeetingEntry>;
+  updateMeetingEntry: (entryId: string, patch: MeetingEntryPatch) => Promise<void>;
+  deleteMeetingEntry: (entryId: string) => Promise<void>;
   createActionItem: (draft: ActionItemDraft) => Promise<ActionItem>;
+  updateActionItem: (actionId: string, patch: ActionItemPatch) => Promise<void>;
+  deleteActionItem: (actionId: string) => Promise<void>;
   completeActionItem: (params: { actionId: string; completedAtMeetingId?: string; completedNote?: string }) => Promise<void>;
   dropActionItem: (params: { actionId: string; completedNote?: string }) => Promise<void>;
   reopenActionItem: (params: { actionId: string }) => Promise<void>;
   createDecision: (draft: DecisionDraft) => Promise<Decision>;
+  updateDecision: (decisionId: string, patch: DecisionPatch) => Promise<void>;
+  deleteDecision: (decisionId: string) => Promise<void>;
   createItem: (draft: ItemDraft) => Promise<Item>;
   updateItem: (itemId: string, draft: ItemDraft) => Promise<void>;
 }
@@ -284,6 +314,33 @@ function requireSession(): SessionContext {
     throw new Error('Store mutation called before hydrate completed.');
   }
   return session;
+}
+
+// After a MeetingEntry edit or delete that may have changed the
+// authoritative status-change history, derive the expected
+// Item.Status (most recent non-null StatusChangeTo across the item's
+// entries) and patch the cached Item.Status if it disagrees. Returns
+// a fresh items array iff a patch happened, otherwise null.
+async function reconcileItemStatus(
+  itemId: string,
+  entries: readonly MeetingEntry[],
+  items: readonly Item[],
+): Promise<Item[] | null> {
+  if (!session) return null;
+  const item = items.find((i) => i.id === itemId);
+  if (!item) return null;
+  const relevant = entries
+    .filter((e) => e.itemId === itemId && e.statusChangeTo)
+    .sort((a, b) => {
+      if (a.meetingDate !== b.meetingDate) return b.meetingDate.localeCompare(a.meetingDate);
+      return b.sortOrder - a.sortOrder;
+    });
+  const derived = relevant[0]?.statusChangeTo;
+  if (!derived || derived === item.status) return null;
+  await patchListItemFields(session.client, session.env.siteId, session.env.lists.items, item.id, {
+    Status: derived,
+  });
+  return fetchItems(session.client, session.env.siteId, session.env.lists.items);
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -480,6 +537,49 @@ export const useStore = create<StoreState>((set, get) => ({
     return created;
   },
 
+  async updateMeetingEntry(entryId, patch) {
+    const { client, env } = requireSession();
+    const state = get();
+    const existing = state.meetingEntries.find((e) => e.id === entryId);
+    if (!existing) throw new Error(`Meeting entry ${entryId} not found.`);
+
+    const fields: Record<string, unknown> = {};
+    if (patch.section !== undefined && patch.section !== existing.section) {
+      fields.Section = patch.section;
+    }
+    if (patch.sortOrder !== undefined && patch.sortOrder !== existing.sortOrder) {
+      fields.SortOrder = patch.sortOrder;
+    }
+    if (patch.narrative !== undefined && patch.narrative !== (existing.narrative ?? '')) {
+      fields.Narrative = patch.narrative;
+    }
+    if (patch.statusChangeTo !== undefined) {
+      const next = patch.statusChangeTo === null ? null : patch.statusChangeTo;
+      const current = existing.statusChangeTo ?? null;
+      if (next !== current) {
+        fields.StatusChangeTo = next;
+      }
+    }
+    if (Object.keys(fields).length === 0) return;
+
+    await patchListItemFields(client, env.siteId, env.lists.meetingEntries, entryId, fields);
+    const meetingEntries = await fetchMeetingEntries(client, env.siteId, env.lists.meetingEntries);
+    const refreshedItems = await reconcileItemStatus(existing.itemId, meetingEntries, state.items);
+    set(refreshedItems ? { meetingEntries, items: refreshedItems } : { meetingEntries });
+  },
+
+  async deleteMeetingEntry(entryId) {
+    const { client, env } = requireSession();
+    const state = get();
+    const existing = state.meetingEntries.find((e) => e.id === entryId);
+    if (!existing) return;
+
+    await deleteListItem(client, env.siteId, env.lists.meetingEntries, entryId);
+    const meetingEntries = await fetchMeetingEntries(client, env.siteId, env.lists.meetingEntries);
+    const refreshedItems = await reconcileItemStatus(existing.itemId, meetingEntries, state.items);
+    set(refreshedItems ? { meetingEntries, items: refreshedItems } : { meetingEntries });
+  },
+
   async createActionItem(draft) {
     const { client, env } = requireSession();
     const state = get();
@@ -508,6 +608,48 @@ export const useStore = create<StoreState>((set, get) => ({
     const created = actionItems.find((a) => a.id === id);
     if (!created) throw new Error('Action item was created but could not be located after refetch.');
     return created;
+  },
+
+  async updateActionItem(actionId, patch) {
+    const { client, env } = requireSession();
+    const state = get();
+    const existing = state.actionItems.find((a) => a.id === actionId);
+    if (!existing) throw new Error(`Action item ${actionId} not found.`);
+    const meeting = state.meetings.find((m) => m.id === existing.assignedAtMeetingId);
+
+    const fields: Record<string, unknown> = {};
+    const nextDescription =
+      patch.description !== undefined ? patch.description.trim() : existing.description;
+    const nextAssignee =
+      patch.assignee !== undefined ? patch.assignee.trim() : existing.assignee;
+    if (patch.description !== undefined && nextDescription !== existing.description) {
+      if (!nextDescription) throw new Error('Description is required.');
+      fields.Description = nextDescription;
+    }
+    if (patch.assignee !== undefined && nextAssignee !== existing.assignee) {
+      if (!nextAssignee) throw new Error('Assignee is required.');
+      fields.Assignee = nextAssignee;
+    }
+    if (patch.dueHint !== undefined) {
+      const next = patch.dueHint?.trim() || null;
+      const current = existing.dueHint ?? null;
+      if (next !== current) fields.DueHint = next;
+    }
+    if ((fields.Description || fields.Assignee) && meeting) {
+      fields.Title = actionTitle(meeting.meetingDate, nextAssignee, nextDescription);
+    }
+    if (Object.keys(fields).length === 0) return;
+
+    await patchListItemFields(client, env.siteId, env.lists.actionItems, actionId, fields);
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
+  },
+
+  async deleteActionItem(actionId) {
+    const { client, env } = requireSession();
+    await deleteListItem(client, env.siteId, env.lists.actionItems, actionId);
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
   },
 
   async completeActionItem({ actionId, completedAtMeetingId, completedNote }) {
@@ -576,5 +718,59 @@ export const useStore = create<StoreState>((set, get) => ({
     const created = decisions.find((d) => d.id === id);
     if (!created) throw new Error('Decision was created but could not be located after refetch.');
     return created;
+  },
+
+  async updateDecision(decisionId, patch) {
+    const { client, env } = requireSession();
+    const state = get();
+    const existing = state.decisions.find((d) => d.id === decisionId);
+    if (!existing) throw new Error(`Decision ${decisionId} not found.`);
+
+    const fields: Record<string, unknown> = {};
+    if (patch.summary !== undefined) {
+      const next = patch.summary.trim();
+      if (!next) throw new Error('Summary is required.');
+      if (next !== existing.summary) {
+        fields.Summary = next;
+        fields.Title = decisionTitleString(existing.decisionDate, next);
+      }
+    }
+    if (patch.decisionType !== undefined && patch.decisionType !== existing.decisionType) {
+      fields.DecisionType = patch.decisionType;
+    }
+    const textFieldEdits: Array<[keyof DecisionPatch, string, string | undefined]> = [
+      ['motionBy', 'MotionBy', existing.motionBy],
+      ['secondBy', 'SecondBy', existing.secondBy],
+      ['vote', 'Vote', existing.vote],
+      ['vendor', 'Vendor', existing.vendor],
+    ];
+    for (const [key, fieldName, current] of textFieldEdits) {
+      if (patch[key] === undefined) continue;
+      const raw = patch[key] as string | null | undefined;
+      const next = raw === null || raw === undefined ? null : raw.trim() || null;
+      if (next !== (current ?? null)) fields[fieldName] = next;
+    }
+    if (patch.amount !== undefined) {
+      const next =
+        patch.amount === null
+          ? null
+          : typeof patch.amount === 'number' && Number.isFinite(patch.amount)
+            ? patch.amount
+            : null;
+      const current = existing.amount ?? null;
+      if (next !== current) fields.Amount = next;
+    }
+    if (Object.keys(fields).length === 0) return;
+
+    await patchListItemFields(client, env.siteId, env.lists.decisions, decisionId, fields);
+    const decisions = await fetchDecisions(client, env.siteId, env.lists.decisions);
+    set({ decisions });
+  },
+
+  async deleteDecision(decisionId) {
+    const { client, env } = requireSession();
+    await deleteListItem(client, env.siteId, env.lists.decisions, decisionId);
+    const decisions = await fetchDecisions(client, env.siteId, env.lists.decisions);
+    set({ decisions });
   },
 }));

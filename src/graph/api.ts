@@ -167,3 +167,14 @@ export async function patchListItemFields(
     },
   );
 }
+
+export async function deleteListItem(
+  client: GraphClient,
+  siteId: string,
+  listName: string,
+  itemId: string,
+): Promise<void> {
+  await client.fetchJson<unknown>(listItemPath(siteId, listName, itemId), {
+    method: 'DELETE',
+  });
+}
