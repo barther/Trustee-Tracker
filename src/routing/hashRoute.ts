@@ -4,10 +4,21 @@ export type Route =
   | { view: 'agenda' }
   | { view: 'item'; itemId: string };
 
+function safeDecode(s: string): string | null {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return null;
+  }
+}
+
 function parse(hash: string): Route {
   const trimmed = hash.replace(/^#\/?/, '');
   const match = trimmed.match(/^item\/([^/]+)$/);
-  if (match) return { view: 'item', itemId: decodeURIComponent(match[1]) };
+  if (match) {
+    const itemId = safeDecode(match[1]);
+    if (itemId) return { view: 'item', itemId };
+  }
   return { view: 'agenda' };
 }
 
