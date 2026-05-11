@@ -433,9 +433,19 @@ export function ActionCard({
   );
 }
 
-export function DecisionCard({ decision }: { decision: Decision }) {
+export function DecisionCard({
+  decision,
+  showItemLink = false,
+}: {
+  decision: Decision;
+  showItemLink?: boolean;
+}) {
   const updateDecision = useStore((s) => s.updateDecision);
   const deleteDecision = useStore((s) => s.deleteDecision);
+  const items = useStore((s) => s.items);
+  const itemTitle = showItemLink
+    ? items.find((i) => i.id === decision.itemId)?.title
+    : undefined;
 
   const [editing, setEditing] = useState(false);
   const [summary, setSummary] = useState(decision.summary);
@@ -600,6 +610,11 @@ export function DecisionCard({ decision }: { decision: Decision }) {
         <span className="meta">{shortDate(decision.decisionDate)}</span>
       </div>
       <div className="decision-summary">{decision.summary}</div>
+      {showItemLink && itemTitle && (
+        <div className="action-meta" style={{ marginTop: 4 }}>
+          <a href={itemHref(decision.itemId)}>{itemTitle}</a>
+        </div>
+      )}
       <div className="decision-meta">
         {decision.motionBy && (
           <span>
