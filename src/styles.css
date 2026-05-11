@@ -296,19 +296,15 @@ h1, h2, h3 { margin: 0; }
 
 /* ─── Stat strip ──────────────────────────────────────────────── */
 .stat-strip {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding: 0 0 14px;
-  margin: 0 -2px 4px;
+  margin: 0 0 18px;
 }
-.stat-strip::-webkit-scrollbar { display: none; }
 
 .stat {
-  flex: 0 0 auto;
-  min-width: 92px;
-  padding: 12px 14px;
+  min-width: 0;
+  padding: 10px 12px;
   border-radius: 12px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -330,16 +326,14 @@ h1, h2, h3 { margin: 0; }
   color: var(--ink-2);
   margin-top: 4px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (min-width: 720px) {
-  .stat-strip {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    overflow: visible;
-    gap: 12px;
-    margin: 0 0 18px;
-  }
+  .stat-strip { gap: 12px; }
+  .stat { padding: 12px 14px; }
 }
 
 /* ─── Section block ──────────────────────────────────────────── */
