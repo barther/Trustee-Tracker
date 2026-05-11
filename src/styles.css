@@ -161,6 +161,42 @@ body {
   color: #555;
 }
 
+.topbar-nav {
+  margin-right: auto;
+  display: flex;
+  gap: 1rem;
+}
+
+.topbar-nav a {
+  color: #225;
+  text-decoration: none;
+}
+
+.topbar-nav a:hover {
+  text-decoration: underline;
+}
+
+.meetings {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.meeting-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entry-addons {
+  margin-top: 0.5rem;
+  border-top: 1px dashed #ddd;
+  padding-top: 0.5rem;
+}
+
 .topbar .link {
   background: none;
   border: none;

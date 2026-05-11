@@ -73,6 +73,14 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
     [allActions, itemId],
   );
 
+  const drift = useMemo(() => {
+    if (!item) return null;
+    const lastChange = entries.find((e) => e.statusChangeTo);
+    if (!lastChange?.statusChangeTo) return null;
+    if (lastChange.statusChangeTo === item.status) return null;
+    return { expected: lastChange.statusChangeTo, on: lastChange.meetingDate };
+  }, [item, entries]);
+
   if (!item) {
     return (
       <div className="detail">
@@ -95,6 +103,13 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
       </p>
 
       <Header item={item} />
+      {drift && (
+        <p className="form-error">
+          Status drift: most recent meeting entry on {drift.on} set status to{' '}
+          <strong>{drift.expected}</strong>, but the item is{' '}
+          <strong>{item.status}</strong>. Edit the item to reconcile.
+        </p>
+      )}
       <Facts item={item} />
       <AddUpdate item={item} />
 

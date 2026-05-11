@@ -43,6 +43,52 @@ export interface InterimUpdateInput {
   statusChangeTo?: ItemStatus;
 }
 
+export interface MeetingEntryInput {
+  itemId: string;
+  meetingId: string;
+  section: EntrySection;
+  sortOrder?: number;
+  narrative: string;
+  statusChangeTo?: ItemStatus;
+}
+
+export interface MeetingDraft {
+  meetingDate: string;
+  meetingType: 'Regular' | 'Special';
+  titleSuffix?: string;
+  location?: string;
+  membersPresent?: string;
+  membersAbsent?: string;
+  guests?: string;
+  openingPrayerBy?: string;
+  adjournedAt?: string;
+  nextMeetingDate?: string;
+  openCloseThisMonth?: string;
+  openCloseNextMonth?: string;
+}
+
+export interface ActionItemDraft {
+  meetingEntryId: string;
+  itemId: string;
+  meetingId: string;
+  description: string;
+  assignee: string;
+  dueHint?: string;
+}
+
+export interface DecisionDraft {
+  meetingEntryId: string;
+  itemId: string;
+  meetingId: string;
+  summary: string;
+  decisionType: 'Approval' | 'Denial' | 'Authorization' | 'Procedural';
+  motionBy?: string;
+  secondBy?: string;
+  vote?: string;
+  amount?: number;
+  vendor?: string;
+}
+
 export interface ItemDraft {
   title: string;
   standing: boolean;
@@ -74,7 +120,12 @@ interface StoreState {
   setConfigError: (missing: string[]) => void;
   reset: () => void;
   createMeeting: (params: { meetingDate: string; meetingType?: 'Regular' | 'Special'; titleSuffix?: string }) => Promise<Meeting>;
+  createMeetingFromDraft: (draft: MeetingDraft) => Promise<Meeting>;
+  updateMeeting: (meetingId: string, draft: MeetingDraft) => Promise<void>;
   addInterimUpdate: (input: InterimUpdateInput) => Promise<void>;
+  createMeetingEntry: (input: MeetingEntryInput) => Promise<MeetingEntry>;
+  createActionItem: (draft: ActionItemDraft) => Promise<ActionItem>;
+  createDecision: (draft: DecisionDraft) => Promise<Decision>;
   createItem: (draft: ItemDraft) => Promise<Item>;
   updateItem: (itemId: string, draft: ItemDraft) => Promise<void>;
 }
@@ -102,9 +153,72 @@ function entryTitle(meetingDate: string, itemTitle: string): string {
   return truncate(`${meetingDate} — ${itemTitle}`, 80);
 }
 
+function actionTitle(meetingDate: string, assignee: string, description: string): string {
+  return truncate(`${meetingDate} — ${assignee}: ${description}`, 80);
+}
+
+function decisionTitleString(meetingDate: string, summary: string): string {
+  return truncate(`${meetingDate} — ${summary}`, 80);
+}
+
 function meetingTitle(meetingDate: string, meetingType: 'Regular' | 'Special', suffix?: string): string {
   const base = `${meetingDate} ${meetingType}`;
   return suffix ? `${base} — ${suffix}` : base;
+}
+
+function meetingDraftToFields(draft: MeetingDraft): Record<string, unknown> {
+  return {
+    Title: meetingTitle(draft.meetingDate, draft.meetingType, draft.titleSuffix?.trim() || undefined),
+    MeetingDate: draft.meetingDate,
+    MeetingType: draft.meetingType,
+    Location: draft.location?.trim() || null,
+    MembersPresent: draft.membersPresent ?? null,
+    MembersAbsent: draft.membersAbsent ?? null,
+    Guests: draft.guests ?? null,
+    OpeningPrayerBy: draft.openingPrayerBy?.trim() || null,
+    AdjournedAt: draft.adjournedAt?.trim() || null,
+    NextMeetingDate: draft.nextMeetingDate || null,
+    OpenCloseThisMonth: draft.openCloseThisMonth?.trim() || null,
+    OpenCloseNextMonth: draft.openCloseNextMonth?.trim() || null,
+  };
+}
+
+function meetingDraftDiff(existing: Meeting, next: MeetingDraft): Record<string, unknown> {
+  const diff: Record<string, unknown> = {};
+  const nextTitle = meetingTitle(next.meetingDate, next.meetingType, next.titleSuffix?.trim() || undefined);
+  if (nextTitle !== existing.title) diff.Title = nextTitle;
+  if (next.meetingDate !== existing.meetingDate) diff.MeetingDate = next.meetingDate;
+  if (next.meetingType !== existing.meetingType) diff.MeetingType = next.meetingType;
+  const nextLoc = next.location?.trim() ?? '';
+  if (nextLoc !== (existing.location ?? '')) diff.Location = nextLoc || null;
+  if ((next.membersPresent ?? '') !== (existing.membersPresent ?? '')) {
+    diff.MembersPresent = next.membersPresent ?? null;
+  }
+  if ((next.membersAbsent ?? '') !== (existing.membersAbsent ?? '')) {
+    diff.MembersAbsent = next.membersAbsent ?? null;
+  }
+  if ((next.guests ?? '') !== (existing.guests ?? '')) {
+    diff.Guests = next.guests ?? null;
+  }
+  const nextPrayer = next.openingPrayerBy?.trim() ?? '';
+  if (nextPrayer !== (existing.openingPrayerBy ?? '')) diff.OpeningPrayerBy = nextPrayer || null;
+  const nextAdj = next.adjournedAt?.trim() ?? '';
+  if (nextAdj !== (existing.adjournedAt ?? '')) diff.AdjournedAt = nextAdj || null;
+  if ((next.nextMeetingDate || '') !== (existing.nextMeetingDate ?? '')) {
+    diff.NextMeetingDate = next.nextMeetingDate || null;
+  }
+  const nextOcThis = next.openCloseThisMonth?.trim() ?? '';
+  if (nextOcThis !== (existing.openCloseThisMonth ?? '')) diff.OpenCloseThisMonth = nextOcThis || null;
+  const nextOcNext = next.openCloseNextMonth?.trim() ?? '';
+  if (nextOcNext !== (existing.openCloseNextMonth ?? '')) diff.OpenCloseNextMonth = nextOcNext || null;
+  return diff;
+}
+
+function nextSortOrder(entries: readonly MeetingEntry[], meetingId: string, section: EntrySection): number {
+  const max = entries
+    .filter((e) => e.meetingId === meetingId && e.section === section)
+    .reduce((acc, e) => Math.max(acc, e.sortOrder), 0);
+  return max + 10;
 }
 
 function draftToFields(draft: ItemDraft, includeStatusForCreate: boolean): Record<string, unknown> {
@@ -247,13 +361,17 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   async createMeeting({ meetingDate, meetingType = 'Regular', titleSuffix }) {
+    return get().createMeetingFromDraft({ meetingDate, meetingType, titleSuffix });
+  },
+
+  async createMeetingFromDraft(draft) {
     const { client, env } = requireSession();
-    const title = meetingTitle(meetingDate, meetingType, titleSuffix);
-    const { id } = await createListItem(client, env.siteId, env.lists.meetings, {
-      Title: title,
-      MeetingDate: meetingDate,
-      MeetingType: meetingType,
-    });
+    const { id } = await createListItem(
+      client,
+      env.siteId,
+      env.lists.meetings,
+      meetingDraftToFields(draft),
+    );
     const meetings = await fetchMeetings(client, env.siteId, env.lists.meetings);
     set({ meetings });
     const created = meetings.find((m) => m.id === id);
@@ -261,6 +379,18 @@ export const useStore = create<StoreState>((set, get) => ({
       throw new Error('Meeting was created but could not be located after refetch.');
     }
     return created;
+  },
+
+  async updateMeeting(meetingId, draft) {
+    const { client, env } = requireSession();
+    const state = get();
+    const existing = state.meetings.find((m) => m.id === meetingId);
+    if (!existing) throw new Error(`Meeting ${meetingId} not found.`);
+    const diff = meetingDraftDiff(existing, draft);
+    if (Object.keys(diff).length === 0) return;
+    await patchListItemFields(client, env.siteId, env.lists.meetings, meetingId, diff);
+    const meetings = await fetchMeetings(client, env.siteId, env.lists.meetings);
+    set({ meetings });
   },
 
   async createItem(draft) {
@@ -293,6 +423,16 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   async addInterimUpdate({ itemId, meetingId, narrative, section = 'Update', statusChangeTo }) {
+    await get().createMeetingEntry({
+      itemId,
+      meetingId,
+      section,
+      narrative,
+      statusChangeTo,
+    });
+  },
+
+  async createMeetingEntry({ itemId, meetingId, section, sortOrder, narrative, statusChangeTo }) {
     const { client, env } = requireSession();
     const state = get();
     const item = state.items.find((i) => i.id === itemId);
@@ -300,11 +440,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (!item) throw new Error(`Item ${itemId} not found.`);
     if (!meeting) throw new Error(`Meeting ${meetingId} not found.`);
 
-    const entriesForMeeting = state.meetingEntries.filter(
-      (e) => e.meetingId === meetingId && e.section === section,
-    );
-    const maxOrder = entriesForMeeting.reduce((acc, e) => Math.max(acc, e.sortOrder), 0);
-    const sortOrder = maxOrder + 10;
+    const order = sortOrder ?? nextSortOrder(state.meetingEntries, meetingId, section);
 
     const fields: Record<string, unknown> = {
       Title: entryTitle(meeting.meetingDate, item.title),
@@ -312,14 +448,14 @@ export const useStore = create<StoreState>((set, get) => ({
       MeetingDate: meeting.meetingDate,
       ItemIdLookupId: Number(item.id),
       Section: section,
-      SortOrder: sortOrder,
+      SortOrder: order,
       Narrative: narrative,
     };
     if (statusChangeTo) {
       fields.StatusChangeTo = statusChangeTo;
     }
 
-    await createListItem(client, env.siteId, env.lists.meetingEntries, fields);
+    const { id } = await createListItem(client, env.siteId, env.lists.meetingEntries, fields);
 
     if (statusChangeTo && statusChangeTo !== item.status) {
       await patchListItemFields(client, env.siteId, env.lists.items, item.id, {
@@ -334,5 +470,72 @@ export const useStore = create<StoreState>((set, get) => ({
         : Promise.resolve(state.items),
     ]);
     set({ meetingEntries, items });
+    const created = meetingEntries.find((e) => e.id === id);
+    if (!created) {
+      throw new Error('Meeting entry was created but could not be located after refetch.');
+    }
+    return created;
+  },
+
+  async createActionItem(draft) {
+    const { client, env } = requireSession();
+    const state = get();
+    const meeting = state.meetings.find((m) => m.id === draft.meetingId);
+    if (!meeting) throw new Error(`Meeting ${draft.meetingId} not found.`);
+
+    const description = draft.description.trim();
+    const assignee = draft.assignee.trim();
+    if (!description) throw new Error('Description is required.');
+    if (!assignee) throw new Error('Assignee is required.');
+
+    const fields: Record<string, unknown> = {
+      Title: actionTitle(meeting.meetingDate, assignee, description),
+      Description: description,
+      Assignee: assignee,
+      MeetingEntryIdLookupId: Number(draft.meetingEntryId),
+      ItemIdLookupId: Number(draft.itemId),
+      AssignedAtMeetingIdLookupId: Number(draft.meetingId),
+      Status: 'Open',
+    };
+    if (draft.dueHint?.trim()) fields.DueHint = draft.dueHint.trim();
+
+    const { id } = await createListItem(client, env.siteId, env.lists.actionItems, fields);
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
+    const created = actionItems.find((a) => a.id === id);
+    if (!created) throw new Error('Action item was created but could not be located after refetch.');
+    return created;
+  },
+
+  async createDecision(draft) {
+    const { client, env } = requireSession();
+    const state = get();
+    const meeting = state.meetings.find((m) => m.id === draft.meetingId);
+    if (!meeting) throw new Error(`Meeting ${draft.meetingId} not found.`);
+
+    const summary = draft.summary.trim();
+    if (!summary) throw new Error('Summary is required.');
+
+    const fields: Record<string, unknown> = {
+      Title: decisionTitleString(meeting.meetingDate, summary),
+      Summary: summary,
+      MeetingEntryIdLookupId: Number(draft.meetingEntryId),
+      MeetingIdLookupId: Number(draft.meetingId),
+      ItemIdLookupId: Number(draft.itemId),
+      DecisionDate: meeting.meetingDate,
+      DecisionType: draft.decisionType,
+    };
+    if (draft.motionBy?.trim()) fields.MotionBy = draft.motionBy.trim();
+    if (draft.secondBy?.trim()) fields.SecondBy = draft.secondBy.trim();
+    if (draft.vote?.trim()) fields.Vote = draft.vote.trim();
+    if (typeof draft.amount === 'number' && Number.isFinite(draft.amount)) fields.Amount = draft.amount;
+    if (draft.vendor?.trim()) fields.Vendor = draft.vendor.trim();
+
+    const { id } = await createListItem(client, env.siteId, env.lists.decisions, fields);
+    const decisions = await fetchDecisions(client, env.siteId, env.lists.decisions);
+    set({ decisions });
+    const created = decisions.find((d) => d.id === id);
+    if (!created) throw new Error('Decision was created but could not be located after refetch.');
+    return created;
   },
 }));
