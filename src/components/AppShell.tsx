@@ -7,12 +7,14 @@ import { useStore } from '../store/useStore';
 import {
   actionsHref,
   decisionsHref,
+  helpHref,
   itemsHref,
   meetingsHref,
 } from '../routing/hashRoute';
 import { ActionsDashboard } from './ActionsDashboard';
 import { AgendaView } from './AgendaView';
 import { DecisionLog } from './DecisionLog';
+import { HelpView } from './HelpView';
 import { ItemDetail } from './ItemDetail';
 import { ItemForm } from './ItemForm';
 import { ItemsList } from './ItemsList';
@@ -156,7 +158,7 @@ export function AppShell() {
   if (phase === 'signed-out' || phase === 'authenticating') {
     return (
       <Centered>
-        <h1>Trustees Agenda</h1>
+        <h1>Trustee Tracker</h1>
         <p>Sign in with your church Microsoft 365 account to continue.</p>
         {msalError && <p className="form-error">{msalError}</p>}
         <button
@@ -200,6 +202,8 @@ export function AppShell() {
         <ItemsList />
       ) : route.view === 'decisions' ? (
         <DecisionLog />
+      ) : route.view === 'help' ? (
+        <HelpView />
       ) : (
         <AgendaView />
       )}
@@ -218,6 +222,9 @@ function UtilityStrip({
   return (
     <div className="utility-strip">
       <span className="account" title={account ?? ''}>{account ?? 'Signed in'}</span>
+      <a href={helpHref} className="link" aria-label="Help and tips">
+        Help
+      </a>
       <button onClick={onSignOut} className="link">
         Sign out
       </button>
@@ -230,7 +237,7 @@ function DesktopNav({ route }: { route: Route }) {
     <nav className="nav-desktop">
       <a href={AGENDA_HREF} className="brand">
         <span className="brand-mark">LS</span>
-        Trustees
+        Trustee Tracker
       </a>
       {NAV.map((item) => (
         <a

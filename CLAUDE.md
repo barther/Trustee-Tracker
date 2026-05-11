@@ -1,4 +1,4 @@
-# CLAUDE.md — Trustees Agenda App
+# CLAUDE.md — Trustee Tracker App
 
 ## Project
 

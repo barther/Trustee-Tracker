@@ -1,4 +1,4 @@
-# Trustees Agenda — How to Use This App
+# Trustee Tracker — How to Use This App
 
 A plain-language guide to what this app does and how to get around. If something here doesn't match what you see on screen, the app has changed — tell Bart.
 
