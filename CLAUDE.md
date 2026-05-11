@@ -6,6 +6,10 @@ Web app for the Lithia Springs Methodist Church Board of Trustees. Monthly meeti
 
 Target users: 9 trustees + pastor + lay leader + admin council chair. Not public-facing.
 
+## Design
+
+Visual design spec: [`docs/design.md`](docs/design.md). Mobile-first "Operations Desk" direction with sage accent, Inter type, and a canonical section/status color map. All component colors and radii derive from tokens defined there — never hard-code per component.
+
 ## Tech Stack
 
 - React 18 + TypeScript, Vite
