@@ -203,6 +203,106 @@ The SharePoint Items list will be seeded by hand from the seed data below. The a
 
 - Historical MeetingEntry and Decision backfill from Oct 2025 – Apr 2026 minutes
 
+## Future: Automated agenda distribution
+
+A Power Automate flow will eventually send the monthly agenda to all
+trustees and archive it. Mirror the working **Weekly Prayer List
+Generator** flow rather than building a custom renderer.
+
+### Why HTML, not Word
+
+`Word → PDF` is a **premium connector**. We are not paying for that
+license. The prayer-list flow works around this by:
+
+1. Storing an **HTML template** in SharePoint (`/Shared Documents/Templates/`)
+   with `{{PLACEHOLDER}}` slots.
+2. Filling placeholders via chained `replace()` in a `Compose` action.
+3. Writing the assembled HTML to OneDrive staging.
+4. Using **`OneDrive: Convert file (using path)`** with `type: pdf` —
+   which is a **standard** connector — to render the PDF.
+5. Saving the PDF to a SharePoint document library and deleting the
+   staging HTML.
+
+Do not propose a Word template, an Azure Function, or a custom
+renderer unless the licensing situation changes.
+
+### Pattern (copy from prayer-list)
+
+```
+Recurrence (weekly, day-of-week + hour, Eastern Standard Time)
+  ↓
+SharePoint: Get items (Items list, filter "Status ne 'Closed' and Status ne 'Declined'")
+SharePoint: Get items (MeetingEntries list, for prior-entries lookup + last narrative)
+  ↓
+Filter array x4   →   Select x4 (render <tr><td class="entry">…</td></tr>)
+  for Updates / Old / New / (Tabled suppressed, like prayer list's empty-state)
+  ↓
+Compose x4 (join rows; emit "No items this section" fallback when empty)
+  ↓
+SharePoint: Get file content (HTML template by path)
+  ↓
+Compose: chained replace() to fill {{MEETING_DATE}}, {{UPDATES_ROWS}},
+  {{OLD_ROWS}}, {{NEW_ROWS}}, {{OPEN_CLOSE}}, {{NEXT_MEETING}}
+  ↓
+OneDrive: Create file (/Agenda Staging/agenda_YYYYMMDD.html)
+  ↓
+Delay 15 seconds          ← required; OneDrive convert fails without this
+  ↓
+OneDrive: Convert file (path) → type: pdf
+  ↓
+SharePoint: Create file (/Agenda Archive/Trustees-Agenda-YYYYMMDD.pdf)
+  ↓
+Office 365 Outlook: Send email (V2) to the trustee distribution list,
+  with a link to the Archive folder (same body shape as prayer-list)
+  ↓
+OneDrive: Delete file (staging HTML)
+  ↓
+[Failure path]: Send_Failure_Email → bart.arther@..., importance High,
+  body explains manual fallback (reprint last month's PDF, or use chair's
+  Word doc)
+```
+
+### Classification rules in Filter array
+
+Translate the rules from `src/agenda/generator.ts` into Power Automate
+expressions:
+
+| Section | `Filter array` `where` |
+|---|---|
+| Skip | `equals(item()?['Status'], 'Closed') or equals(item()?['Status'], 'Declined')` — filter out before sectioning |
+| Skip | `and(not(empty(item()?['DeferredUntil'])), greater(item()?['DeferredUntil'], targetDate))` |
+| Tabled | `or(equals(item()?['Status'], 'Tabled'), not(empty(item()?['OnHoldReason'])))` |
+| Updates | `equals(item()?['Standing'], true)` (after Tabled removed) |
+| Old | items with at least one MeetingEntry where MeetingDate < targetDate |
+| New | items with zero prior MeetingEntries |
+
+`DefaultSection != 'Auto'` (manual override) should win over Standing /
+prior-entries — apply it before the Standing check.
+
+### Template placeholders
+
+| Token | Source |
+|---|---|
+| `{{MEETING_DATE}}` | `formatDateTime(triggerOutputs() targetDate, 'MMMM d, yyyy')` |
+| `{{MEETING_TIME}}` | `Meeting.Location ? '6 PM ' + Meeting.Location : '6 PM Living Faith Class room on 3rd floor'` |
+| `{{PRIOR_MEETING_MONTH}}` | most recent Meeting where MeetingDate < target, `formatDateTime(..., 'MMMM yyyy')` |
+| `{{OPEN_CLOSE}}` | `'Open/Close: ' + thisMonthName + ', ' + Meeting.OpenCloseThisMonth + ' – ' + nextMonthName + ', ' + Meeting.OpenCloseNextMonth` |
+| `{{UPDATES_ROWS}}` / `{{OLD_ROWS}}` / `{{NEW_ROWS}}` | joined `<tr>` output from each section's `Select` |
+| `{{NEXT_MEETING}}` | `Meeting.NextMeetingDate ?? next third Tuesday after target` |
+
+Tabled is deliberately not in the template — the chair's typed
+agendas never list it and the trustees use the app for tabled items.
+
+### Gotchas inherited from the prayer-list flow
+
+- **15-second `Delay`** before `Convert file` — OneDrive needs time to
+  see the freshly written HTML, otherwise convert returns "not found".
+- **`Send_Failure_Email`** must list every preceding action with
+  `runAfter: { Failed, TimedOut }` so any single-step failure routes
+  to one alert.
+- HTML template lives in SP `/Shared Documents/Templates/` so the
+  admin can edit it without touching the flow.
+
 ## Seed Data
 
 ### Items (24 open + 4 closed)

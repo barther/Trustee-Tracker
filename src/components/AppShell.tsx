@@ -4,11 +4,12 @@ import { initializeMsal, loginRequest } from '../auth/msal';
 import { loadEnv, type AppEnv } from '../env';
 import { useHashRoute, type Route } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import { actionsHref, meetingsHref } from '../routing/hashRoute';
+import { actionsHref, itemsHref, meetingsHref } from '../routing/hashRoute';
 import { ActionsDashboard } from './ActionsDashboard';
 import { AgendaView } from './AgendaView';
 import { ItemDetail } from './ItemDetail';
 import { ItemForm } from './ItemForm';
+import { ItemsList } from './ItemsList';
 import { MeetingDetail } from './MeetingDetail';
 import { MeetingsList } from './MeetingsList';
 
@@ -28,7 +29,7 @@ const NAV: NavItem[] = [
     href: AGENDA_HREF,
     label: 'Agenda',
     glyph: '☰',
-    matches: (r) => r.view === 'agenda' || r.view === 'item' || r.view === 'newItem' || r.view === 'editItem',
+    matches: (r) => r.view === 'agenda',
   },
   {
     href: meetingsHref,
@@ -41,6 +42,13 @@ const NAV: NavItem[] = [
     label: 'Actions',
     glyph: '✓',
     matches: (r) => r.view === 'actions',
+  },
+  {
+    href: itemsHref,
+    label: 'Items',
+    glyph: '⊞',
+    matches: (r) =>
+      r.view === 'items' || r.view === 'item' || r.view === 'newItem' || r.view === 'editItem',
   },
 ];
 
@@ -176,6 +184,8 @@ export function AppShell() {
         <MeetingDetail meetingId={route.meetingId} />
       ) : route.view === 'actions' ? (
         <ActionsDashboard />
+      ) : route.view === 'items' ? (
+        <ItemsList />
       ) : (
         <AgendaView />
       )}
