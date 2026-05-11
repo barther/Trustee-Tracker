@@ -189,13 +189,6 @@ export const useStore = create<StoreState>((set, get) => ({
       ]);
       session = { client, env };
 
-      void client
-        .fetchJson<{ value: unknown[] }>(
-          `/sites/${encodeURIComponent(env.siteId)}/lists/${encodeURIComponent(env.lists.items)}/columns?$filter=name eq 'Tags'`,
-        )
-        .then((res) => console.log('[diag] Tags column metadata', res.value))
-        .catch((err) => console.warn('[diag] Tags column lookup failed', err));
-
       set({
         status: 'ready',
         items,
