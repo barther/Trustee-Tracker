@@ -125,6 +125,9 @@ interface StoreState {
   addInterimUpdate: (input: InterimUpdateInput) => Promise<void>;
   createMeetingEntry: (input: MeetingEntryInput) => Promise<MeetingEntry>;
   createActionItem: (draft: ActionItemDraft) => Promise<ActionItem>;
+  completeActionItem: (params: { actionId: string; completedAtMeetingId?: string; completedNote?: string }) => Promise<void>;
+  dropActionItem: (params: { actionId: string; completedNote?: string }) => Promise<void>;
+  reopenActionItem: (params: { actionId: string }) => Promise<void>;
   createDecision: (draft: DecisionDraft) => Promise<Decision>;
   createItem: (draft: ItemDraft) => Promise<Item>;
   updateItem: (itemId: string, draft: ItemDraft) => Promise<void>;
@@ -505,6 +508,42 @@ export const useStore = create<StoreState>((set, get) => ({
     const created = actionItems.find((a) => a.id === id);
     if (!created) throw new Error('Action item was created but could not be located after refetch.');
     return created;
+  },
+
+  async completeActionItem({ actionId, completedAtMeetingId, completedNote }) {
+    const { client, env } = requireSession();
+    const fields: Record<string, unknown> = { Status: 'Done' };
+    if (completedAtMeetingId) {
+      fields.CompletedAtMeetingIdLookupId = Number(completedAtMeetingId);
+    }
+    if (completedNote !== undefined) {
+      fields.CompletedNote = completedNote.trim() || null;
+    }
+    await patchListItemFields(client, env.siteId, env.lists.actionItems, actionId, fields);
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
+  },
+
+  async dropActionItem({ actionId, completedNote }) {
+    const { client, env } = requireSession();
+    const fields: Record<string, unknown> = { Status: 'Dropped' };
+    if (completedNote !== undefined) {
+      fields.CompletedNote = completedNote.trim() || null;
+    }
+    await patchListItemFields(client, env.siteId, env.lists.actionItems, actionId, fields);
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
+  },
+
+  async reopenActionItem({ actionId }) {
+    const { client, env } = requireSession();
+    await patchListItemFields(client, env.siteId, env.lists.actionItems, actionId, {
+      Status: 'Open',
+      CompletedNote: null,
+      CompletedAtMeetingIdLookupId: null,
+    });
+    const actionItems = await fetchActionItems(client, env.siteId, env.lists.actionItems);
+    set({ actionItems });
   },
 
   async createDecision(draft) {

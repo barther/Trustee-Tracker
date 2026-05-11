@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { ActionCard } from './ActionsDashboard';
 import { itemHref, meetingsHref } from '../routing/hashRoute';
 import {
   useStore,
@@ -562,14 +563,7 @@ function EntryRow({
       {actions.length > 0 && (
         <ul className="actions">
           {actions.map((a) => (
-            <li key={a.id} className={`action-row action-${a.status.toLowerCase()}`}>
-              <div className="action-head">
-                <span className="badge">{a.status}</span>
-                <span className="action-assignee">{a.assignee}</span>
-                {a.dueHint && <span className="action-due">Due: {a.dueHint}</span>}
-              </div>
-              <div className="action-desc">{a.description}</div>
-            </li>
+            <ActionCard key={a.id} action={a} />
           ))}
         </ul>
       )}
